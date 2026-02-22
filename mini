@@ -1,0 +1,285 @@
+#!/usr/bin/env python3
+# ─────────────────────────────────────────────────────
+# 0xeeMini v0.1.0 — mini CLI (deploy/status/logs/backup/wallet)
+# https://mini.0xee.li
+# ─────────────────────────────────────────────────────
+
+import hashlib
+import os
+import subprocess
+import sys
+from datetime import datetime
+from pathlib import Path
+
+# ── Configuration VPS ─────────────────────────────────
+VPS_USER = "debian"
+VPS_HOST = "REMPLACER_PAR_IP_VPS"
+VPS_PATH = "/home/debian/0xeemini"
+LOCAL_PATH = "/home/pankso/Dev/0xeemini"
+SERVICE_NAME = "0xeemini"
+KEEP_BACKUPS = 10
+
+# ── Helpers ───────────────────────────────────────────
+
+def _run(cmd: list[str], check: bool = True, capture: bool = False) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        cmd, check=check,
+        capture_output=capture,
+        text=True,
+    )
+
+
+def _ssh(remote_cmd: str, capture: bool = False) -> subprocess.CompletedProcess:
+    return _run(
+        ["ssh", "-o", "StrictHostKeyChecking=no",
+         f"{VPS_USER}@{VPS_HOST}", remote_cmd],
+        check=False,
+        capture=capture,
+    )
+
+
+def _print_section(title: str) -> None:
+    width = 50
+    print(f"\n{'─' * width}")
+    print(f"  {title}")
+    print(f"{'─' * width}")
+
+
+def _check_vps_configured() -> bool:
+    if VPS_HOST == "REMPLACER_PAR_IP_VPS":
+        print("❌ VPS non configuré.")
+        print("   Édite le fichier 'mini' et remplace VPS_HOST par l'IP réelle.")
+        return False
+    return True
+
+
+# ── Commandes ─────────────────────────────────────────
+
+def cmd_deploy() -> None:
+    """Déploie le projet sur le VPS et redémarre le service."""
+    if not _check_vps_configured():
+        return
+
+    print(f"🚀 Déploiement vers {VPS_USER}@{VPS_HOST}:{VPS_PATH}")
+
+    # rsync — exclure secrets, DB, logs
+    _print_section("rsync")
+    _run([
+        "rsync", "-avz",
+        "--exclude=*.db", "--exclude=*.db-shm", "--exclude=*.db-wal",
+        "--exclude=logs/", "--exclude=.env", "--exclude=backups/",
+        "--exclude=__pycache__/", "--exclude=*.pyc", "--exclude=.venv/",
+        f"{LOCAL_PATH}/",
+        f"{VPS_USER}@{VPS_HOST}:{VPS_PATH}/",
+    ])
+
+    # Installer les dépendances
+    _print_section("pip install")
+    _ssh(f"cd {VPS_PATH} && pip install --user -q -r requirements.txt")
+
+    # Redémarrer le service
+    _print_section("restart service")
+    _ssh(f"systemctl --user restart {SERVICE_NAME}.service")
+
+    # Status en cascade
+    print()
+    cmd_status()
+
+
+def cmd_status() -> None:
+    """Affiche le statut du service VPS + RAM + logs récents."""
+    if not _check_vps_configured():
+        return
+
+    try:
+        from rich.console import Console
+        from rich.panel import Panel
+        console = Console()
+        use_rich = True
+    except ImportError:
+        use_rich = False
+
+    _print_section("Service systemd")
+    _ssh(f"systemctl --user status {SERVICE_NAME}.service --no-pager")
+
+    _print_section("RAM")
+    _ssh("free -h | grep Mem")
+
+    _print_section("Derniers logs (5 lignes)")
+    result = _ssh(
+        f"tail -5 ~/.local/share/0xeemini/logs/agent.log",
+        capture=True,
+    )
+    if result.stdout:
+        print(result.stdout)
+    else:
+        print("(aucun log disponible)")
+
+
+def cmd_logs() -> None:
+    """Suit les logs en temps réel (tail -f via SSH)."""
+    if not _check_vps_configured():
+        return
+
+    print(f"📋 Logs en temps réel — {VPS_USER}@{VPS_HOST}")
+    print("(Ctrl+C pour quitter)\n")
+    subprocess.run([
+        "ssh", "-o", "StrictHostKeyChecking=no",
+        "-t", f"{VPS_USER}@{VPS_HOST}",
+        "tail -f ~/.local/share/0xeemini/logs/agent.log",
+    ])
+
+
+def cmd_backup() -> None:
+    """Télécharge et vérifie la base de données SQLite."""
+    if not _check_vps_configured():
+        return
+
+    backup_dir = Path(LOCAL_PATH) / "backups"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    local_file = backup_dir / f"state_{ts}.db"
+    remote_file = f"~/.local/share/0xeemini/state.db"
+
+    print(f"📦 Backup DB → {local_file}")
+
+    # SCP
+    _run([
+        "scp",
+        "-o", "StrictHostKeyChecking=no",
+        f"{VPS_USER}@{VPS_HOST}:{remote_file}",
+        str(local_file),
+    ])
+
+    # Vérification MD5
+    _print_section("Vérification MD5")
+    remote_md5 = _ssh(
+        f"md5sum ~/.local/share/0xeemini/state.db | cut -d' ' -f1",
+        capture=True,
+    ).stdout.strip()
+
+    with open(local_file, "rb") as f:
+        local_md5 = hashlib.md5(f.read()).hexdigest()
+
+    if local_md5 == remote_md5:
+        print(f"✅ MD5 vérifié : {local_md5}")
+    else:
+        print(f"❌ MD5 mismatch ! Remote={remote_md5} Local={local_md5}")
+
+    # Garder seulement les KEEP_BACKUPS derniers
+    backups = sorted(backup_dir.glob("state_*.db"))
+    if len(backups) > KEEP_BACKUPS:
+        to_delete = backups[: len(backups) - KEEP_BACKUPS]
+        for f in to_delete:
+            f.unlink()
+            print(f"🗑️  Supprimé ancien backup : {f.name}")
+
+    print(f"\n📂 {len(list(backup_dir.glob('state_*.db')))} backup(s) dans {backup_dir}")
+
+
+def cmd_wallet() -> None:
+    """Affiche le statut du wallet 0xeeMini."""
+    if not _check_vps_configured():
+        return
+
+    _print_section("Wallet Status")
+    _ssh(
+        f"cd {VPS_PATH} && python3 -c "
+        f"\"from oxeemini.config import CFG; from oxeemini.profit_engine import ProfitEngine; "
+        f"ProfitEngine(CFG).print_wallet_status()\""
+    )
+
+
+def cmd_stop() -> None:
+    """Arrête le service 0xeeMini sur le VPS."""
+    if not _check_vps_configured():
+        return
+    print(f"🛑 Arrêt de {SERVICE_NAME}.service")
+    _ssh(f"systemctl --user stop {SERVICE_NAME}.service")
+    _ssh(f"systemctl --user status {SERVICE_NAME}.service --no-pager")
+
+
+def cmd_start() -> None:
+    """Démarre le service 0xeeMini sur le VPS."""
+    if not _check_vps_configured():
+        return
+    print(f"▶️  Démarrage de {SERVICE_NAME}.service")
+    _ssh(f"systemctl --user start {SERVICE_NAME}.service")
+    _ssh(f"systemctl --user status {SERVICE_NAME}.service --no-pager")
+
+
+def cmd_setup_vps() -> None:
+    """Configure ~/.config/0xeeMini/ sur le VPS pour la première fois."""
+    if not _check_vps_configured():
+        return
+
+    print(f"🔐 Configuration initiale du VPS {VPS_HOST}")
+
+    # Créer le répertoire config
+    _ssh("mkdir -p ~/.config/0xeeMini && chmod 700 ~/.config/0xeeMini")
+
+    # Copier setup_secrets.sh
+    _run([
+        "scp",
+        "-o", "StrictHostKeyChecking=no",
+        f"{LOCAL_PATH}/setup_secrets.sh",
+        f"{VPS_USER}@{VPS_HOST}:~/setup_secrets.sh",
+    ])
+
+    # Copier .env.example
+    _run([
+        "scp",
+        "-o", "StrictHostKeyChecking=no",
+        f"{LOCAL_PATH}/.env.example",
+        f"{VPS_USER}@{VPS_HOST}:~/.config/0xeeMini/.env.example",
+    ])
+
+    print("\n✅ setup_secrets.sh copié sur le VPS")
+    print("\n📋 PROCHAINE ÉTAPE — sur le VPS :")
+    print(f"   ssh {VPS_USER}@{VPS_HOST}")
+    print(f"   cd {VPS_PATH}")
+    print(f"   bash ~/setup_secrets.sh")
+    print(f"   nano ~/.config/0xeeMini/.env")
+
+
+# ── Dispatcher ────────────────────────────────────────
+
+COMMANDS = {
+    "deploy":     (cmd_deploy,    "Déploie sur le VPS et redémarre"),
+    "status":     (cmd_status,    "Affiche statut service + RAM + logs"),
+    "logs":       (cmd_logs,      "Suit les logs en temps réel"),
+    "backup":     (cmd_backup,    "Télécharge et vérifie la DB"),
+    "wallet":     (cmd_wallet,    "Affiche le statut du wallet USDC"),
+    "stop":       (cmd_stop,      "Arrête le service"),
+    "start":      (cmd_start,     "Démarre le service"),
+    "setup-vps":  (cmd_setup_vps, "Configure les secrets sur le VPS"),
+}
+
+
+def _usage() -> None:
+    print(f"\n0xeeMini CLI v0.1.0 — {VPS_USER}@{VPS_HOST}")
+    print(f"Platform : https://mini.0xee.li\n")
+    print("Usage : ./mini <commande>\n")
+    print("Commandes disponibles :")
+    for name, (_, desc) in COMMANDS.items():
+        print(f"  {name:<14} {desc}")
+    print()
+
+
+def main() -> None:
+    if len(sys.argv) < 2:
+        _usage()
+        sys.exit(1)
+
+    cmd = sys.argv[1].lower()
+    if cmd not in COMMANDS:
+        print(f"❌ Commande inconnue : '{cmd}'")
+        _usage()
+        sys.exit(1)
+
+    COMMANDS[cmd][0]()
+
+
+if __name__ == "__main__":
+    main()
