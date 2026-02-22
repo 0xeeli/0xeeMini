@@ -1,0 +1,30 @@
+# ─────────────────────────────────────────────────────
+# 0xeeMini v0.1.0 — systemd user service
+# https://mini.0xee.li
+# ─────────────────────────────────────────────────────
+# Activation (sur le VPS, en tant que debian) :
+#
+#   mkdir -p ~/.config/systemd/user/
+#   cp 0xeemini.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now 0xeemini.service
+#   loginctl enable-linger debian
+#
+# ─────────────────────────────────────────────────────
+
+[Unit]
+Description=0xeeMini Autonomous Agent — https://mini.0xee.li
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/debian/0xeemini
+ExecStart=/home/debian/.local/bin/python3 /home/debian/0xeemini/0xeemini/main.py
+Restart=on-failure
+RestartSec=10s
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target
