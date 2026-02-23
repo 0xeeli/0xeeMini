@@ -761,8 +761,7 @@ async def actions_manifest():
                 {"pathPattern": "/audit/action/**", "apiPath": "/audit/action"},
                 {"pathPattern": "/catalog/action",  "apiPath": "/catalog/action"},
             ]
-        },
-        headers=BLINK_HEADERS,
+        }
     )
 
 
@@ -1031,7 +1030,7 @@ async def post_audit(body: AuditRequest):
 @app.options("/audit/action")
 async def audit_action_options():
     """OPTIONS preflight pour Blinks — Dialect validator + wallets."""
-    return JSONResponse(content={}, headers=BLINK_HEADERS)
+    return JSONResponse(content={})
 
 
 @app.get("/audit/action")
@@ -1063,8 +1062,7 @@ async def audit_action_meta(repo: str = ""):
                         }
                     ]
                 },
-            },
-            headers=BLINK_HEADERS,
+            }
         )
     return JSONResponse(
         content={
@@ -1094,8 +1092,7 @@ async def audit_action_meta(repo: str = ""):
                     }
                 ]
             },
-        },
-        headers=BLINK_HEADERS,
+        }
     )
 
 
@@ -1208,15 +1205,14 @@ async def audit_action_exec(body: BlinkRequest, repo: str = ""):
                 f"POST {_PLATFORM}/audit "
                 f'{{"repo_url":"{repo}","tx_signature":"<sig>"}} to receive your report.'
             ),
-        },
-        headers=BLINK_HEADERS,
+        }
     )
 
 
 @app.options("/catalog/action")
 async def catalog_action_options():
     """OPTIONS preflight pour Blinks catalog."""
-    return JSONResponse(content={}, headers=BLINK_HEADERS)
+    return JSONResponse(content={})
 
 
 @app.get("/catalog/action")
@@ -1242,8 +1238,7 @@ async def catalog_action_meta():
                     }
                 ]
             },
-        },
-        headers=BLINK_HEADERS,
+        }
     )
 
 
