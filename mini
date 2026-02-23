@@ -108,12 +108,15 @@ def cmd_deploy() -> None:
         f"loginctl enable-linger debian"
     )
 
-    # Synchroniser le frontend vers le vhost lighttpd
+    # Synchroniser le frontend vers le vhost lighttpd (tous les fichiers)
     _print_section("sync www → lighttpd vhost")
-    _ssh(
-        f"cp {VPS_PATH}/www/index.html {VPS_WEB_PATH}/index.html && "
-        f"echo 'www synced'"
-    )
+    _run([
+        "rsync", "-avz",
+        "--exclude='.DS_Store'",
+        "-e", "ssh -o StrictHostKeyChecking=no",
+        f"{LOCAL_PATH}/www/",
+        f"{VPS_USER}@{VPS_HOST}:{VPS_WEB_PATH}/",
+    ])
 
     # Redémarrer le service
     _print_section("restart service")

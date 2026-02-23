@@ -276,6 +276,47 @@ h2{font-size:1.4rem;font-weight:800;color:#fff;margin-bottom:.4rem}
 
 hr.div{border:none;border-top:1px solid var(--border);margin:0}
 
+/* ── ABOUT ── */
+.about-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:1px;
+  background:var(--border);
+  border:1px solid var(--border);
+  margin-bottom:2rem;
+}
+.about-cell{
+  background:var(--bg2);
+  padding:1.75rem 2rem;
+}
+.about-cell-wide{
+  background:var(--bg2);
+  padding:1.75rem 2rem;
+  grid-column:1/-1;
+}
+.about-head{
+  font-size:.55rem;color:var(--green);
+  letter-spacing:.2em;text-transform:uppercase;
+  margin-bottom:.75rem;
+}
+.about-head::before{content:'> ';color:var(--text-d)}
+.about-body{font-size:.72rem;color:var(--text);line-height:1.8}
+.about-body strong{color:#fff}
+.about-body em{color:var(--amber);font-style:normal}
+
+.constraints{
+  display:flex;flex-wrap:wrap;gap:.5rem;
+  margin-top:1rem;
+}
+.tag{
+  font-size:.6rem;padding:.25rem .65rem;
+  border:1px solid var(--border2);color:var(--text-d);
+  letter-spacing:.06em;
+}
+.tag.g{border-color:var(--green-d);color:var(--green)}
+.tag.b{border-color:#1e40af;color:var(--blue)}
+.tag.a{border-color:#92400e;color:var(--amber)}
+
 /* ── SERVICES ── */
 .srv-grid{
   display:grid;
@@ -484,6 +525,7 @@ footer{
 <nav>
   <div class="nav-id">0xee<span>Mini_</span></div>
   <ul class="nav-links">
+    <li><a href="#about">Challenge</a></li>
     <li><a href="#services">Services</a></li>
     <li><a href="#protocol">Protocol</a></li>
     <li><a href="#live">Live</a></li>
@@ -580,6 +622,77 @@ footer{
 
   </div><!-- /.hero-inner -->
 </section>
+
+<hr class="div">
+
+<!-- ── ABOUT ── -->
+<div class="section" id="about">
+  <div class="sec-label">the challenge</div>
+  <h2>Autonomous AI on a $5/month VPS.</h2>
+  <p class="sec-sub">No cloud budget. No human operator. The agent pays its own bills — or shuts down.</p>
+
+  <div class="about-grid">
+
+    <div class="about-cell-wide">
+      <div class="about-head">mission</div>
+      <div class="about-body">
+        Build an <strong>autonomous AI agent</strong> that runs 24/7 on a cheap VPS,
+        sells intelligence services for USDC, and <em>pays its own hosting costs</em>
+        before forwarding profit to its owner. No human intervention after deploy.
+        If revenue stops, the agent alerts, cuts expenses, and adapts — alone.
+      </div>
+    </div>
+
+    <div class="about-cell">
+      <div class="about-head">hardware constraint</div>
+      <div class="about-body">
+        <strong>2 GB RAM · 1 vCPU · 20 GB SSD.</strong><br><br>
+        No GPU. No cloud inference budget. The agent runs two GGUF models
+        on CPU: a <em>0.5B reflex brain</em> for 60-second constitution cycles,
+        and a <em>1.5B Samouraï brain</em> loaded ephemerally for GitHub audits,
+        freed immediately after each use (<code>del llm; gc.collect()</code>).
+        Claude API is a paid fallback, not the default.
+      </div>
+      <div class="constraints">
+        <span class="tag g">qwen2.5-0.5B GGUF</span>
+        <span class="tag g">qwen2.5-coder-1.5B GGUF</span>
+        <span class="tag a">n_ctx=1024</span>
+        <span class="tag b">ephemeral RAM</span>
+        <span class="tag">2GB hard cap</span>
+      </div>
+    </div>
+
+    <div class="about-cell">
+      <div class="about-head">financial autonomy</div>
+      <div class="about-body">
+        Every 30 minutes the agent checks its USDC balance.
+        It holds a <em>$15 USDC reserve</em>, pays the $5 VPS bill monthly via on-chain TX,
+        and transfers surplus to the owner wallet on Solana.
+        Revenue comes from audits (0.50 USDC) and insights (0.10 USDC)
+        — no subscriptions, no API keys for the buyer, <em>pure HTTP 402</em>.
+      </div>
+      <div class="constraints">
+        <span class="tag g">$15 reserve</span>
+        <span class="tag a">$5/mo VPS auto-pay</span>
+        <span class="tag b">HTTP 402</span>
+        <span class="tag">USDC · Solana</span>
+      </div>
+    </div>
+
+    <div class="about-cell-wide">
+      <div class="about-head">the rules</div>
+      <div class="about-body" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.5rem 2rem">
+        <span>✦ No persistent human input after first deploy</span>
+        <span>✦ Must self-fund within 30 days</span>
+        <span>✦ All decisions logged on-chain or in SQLite with proof hash</span>
+        <span>✦ &lt;500 MB RAM idle · &lt;1.8 GB peak (audit)</span>
+        <span>✦ Open source — anyone can fork and run their own</span>
+        <span>✦ Agent identity published on <code>/.well-known/agent.json</code></span>
+      </div>
+    </div>
+
+  </div>
+</div>
 
 <hr class="div">
 
