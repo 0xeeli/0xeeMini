@@ -33,6 +33,8 @@ _AGENT_NAME = "0xeeMini"
 
 USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 MEMO_PROGRAM = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"
+TOKEN_PROGRAM_ID = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+ASSOCIATED_TOKEN_PROGRAM_ID = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJe1bBX"
 
 
 def increment_cycle() -> None:
@@ -61,9 +63,9 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_methods=["GET", "POST"],
-    allow_headers=["*", "X-Payment-Tx"],
-    expose_headers=["X-Payment-Tx", "X-Powered-By"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*", "X-Payment-Tx", "x-action-version", "x-blockchain-ids"],
+    expose_headers=["X-Payment-Tx", "X-Powered-By", "X-Action-Version"],
 )
 
 _api = __import__('fastapi').APIRouter(prefix="/api")
@@ -728,8 +730,26 @@ async def agent_json():
             "ai_plugin": f"{_PLATFORM}/.well-known/ai-plugin.json",
             "openapi": f"{_PLATFORM}/openapi.json",
             "catalog": f"{_PLATFORM}/catalog",
+            "blinks": {
+                "manifest": f"{_PLATFORM}/.well-known/actions.json",
+                "audit_action": f"{_PLATFORM}/audit/action",
+                "catalog_action": f"{_PLATFORM}/catalog/action",
+                "registry": "https://dial.to/?action=solana-action:" + _PLATFORM + "/audit/action",
+            },
         },
     }
+
+
+@app.get("/.well-known/actions.json")
+async def actions_manifest():
+    """Dialect/Solana Actions registry manifest — liste les Blinks de l'agent."""
+    return JSONResponse({
+        "rules": [
+            {"pathPattern": "/audit/action",    "apiPath": "/audit/action"},
+            {"pathPattern": "/audit/action/**", "apiPath": "/audit/action"},
+            {"pathPattern": "/catalog/action",  "apiPath": "/catalog/action"},
+        ]
+    })
 
 
 @app.get("/.well-known/ai-plugin.json")
@@ -994,6 +1014,201 @@ async def post_audit(body: AuditRequest):
     return JSONResponse({"status": "ok", **result})
 
 
+@app.get("/audit/action")
+async def audit_action_meta(repo: str = ""):
+    """
+    Blink GET — action metadata pour GitHub Audit.
+    Dialect dial.to / Solana Actions spec.
+    """
+    from .config import CFG
+    price = CFG["price_per_audit"]
+    if repo:
+        return JSONResponse({
+            "type": "action",
+            "icon": f"{_PLATFORM}/logo.png",
+            "title": f"Audit {repo}",
+            "description": (
+                f"Detect fake developer activity in {repo}. "
+                "Bullshit score 0-100, verdict INVEST / CAUTION / AVOID. "
+                "SHA256 proof-of-compute included."
+            ),
+            "label": f"Pay {price} USDC → Audit",
+            "links": {
+                "actions": [
+                    {
+                        "type": "transaction",
+                        "label": f"Pay {price} USDC → Audit",
+                        "href": f"/audit/action?repo={repo}",
+                    }
+                ]
+            },
+        })
+    return JSONResponse({
+        "type": "action",
+        "icon": f"{_PLATFORM}/logo.png",
+        "title": "GitHub Fake-Dev Audit",
+        "description": (
+            "Detect wash development, cosmetic-only commits, and fake team activity. "
+            "Bullshit score 0-100, verdict INVEST / CAUTION / AVOID. "
+            "SHA256 proof-of-compute on every result."
+        ),
+        "label": f"Audit for {price} USDC",
+        "links": {
+            "actions": [
+                {
+                    "type": "transaction",
+                    "label": f"Audit for {price} USDC",
+                    "href": "/audit/action?repo={repo}",
+                    "parameters": [
+                        {
+                            "name": "repo",
+                            "label": "GitHub repo (e.g. bitcoin/bitcoin)",
+                            "required": True,
+                            "type": "text",
+                        }
+                    ],
+                }
+            ]
+        },
+    })
+
+
+def _derive_ata(wallet_str: str, mint_str: str = USDC_MINT) -> str:
+    """Dérive l'adresse ATA USDC d'un wallet — 100% hors-ligne, sans RPC."""
+    from solders.pubkey import Pubkey  # type: ignore
+    wallet = Pubkey.from_string(wallet_str)
+    mint = Pubkey.from_string(mint_str)
+    token_program = Pubkey.from_string(TOKEN_PROGRAM_ID)
+    ata_prog = Pubkey.from_string(ASSOCIATED_TOKEN_PROGRAM_ID)
+    ata, _ = Pubkey.find_program_address(
+        [bytes(wallet), bytes(token_program), bytes(mint)],
+        ata_prog,
+    )
+    return str(ata)
+
+
+async def _build_blink_tx(user_pubkey_str: str, amount_usdc: float, memo: str = "") -> str:
+    """
+    Construit une transaction USDC non-signée pour Blinks.
+    Le wallet client la signe et la broadcastera lui-même.
+    Retourne la transaction sérialisée en base64.
+    """
+    import base64
+    import struct
+    from solders.pubkey import Pubkey  # type: ignore
+    from solders.hash import Hash  # type: ignore
+    from solders.instruction import Instruction, AccountMeta  # type: ignore
+    from solders.message import Message  # type: ignore
+    from solders.transaction import Transaction  # type: ignore
+    from .config import CFG
+
+    user_pk = Pubkey.from_string(user_pubkey_str)
+    usdc_mint = Pubkey.from_string(USDC_MINT)
+    token_program = Pubkey.from_string(TOKEN_PROGRAM_ID)
+    user_ata = Pubkey.from_string(_derive_ata(user_pubkey_str))
+    agent_ata = Pubkey.from_string(_derive_ata(CFG["wallet_public"]))
+
+    # Blockhash frais
+    async with httpx.AsyncClient(timeout=15) as client:
+        r = await client.post(CFG["solana_rpc"], json={
+            "jsonrpc": "2.0", "id": 1,
+            "method": "getLatestBlockhash",
+            "params": [{"commitment": "finalized"}],
+        })
+    blockhash_str = r.json()["result"]["value"]["blockhash"]
+    recent_blockhash = Hash.from_string(blockhash_str)
+
+    # SPL Token transferChecked — discriminant 12
+    amount_micro = int(amount_usdc * 1_000_000)
+    ix_data = bytes([12]) + struct.pack("<Q", amount_micro) + bytes([6])
+
+    transfer_ix = Instruction(
+        program_id=token_program,
+        accounts=[
+            AccountMeta(pubkey=user_ata,  is_signer=False, is_writable=True),
+            AccountMeta(pubkey=usdc_mint, is_signer=False, is_writable=False),
+            AccountMeta(pubkey=agent_ata, is_signer=False, is_writable=True),
+            AccountMeta(pubkey=user_pk,   is_signer=True,  is_writable=False),
+        ],
+        data=bytes(ix_data),
+    )
+    ixs = [transfer_ix]
+
+    if memo:
+        memo_ix = Instruction(
+            program_id=Pubkey.from_string(MEMO_PROGRAM),
+            accounts=[AccountMeta(pubkey=user_pk, is_signer=True, is_writable=False)],
+            data=memo.encode(),
+        )
+        ixs.append(memo_ix)
+
+    msg = Message.new_with_blockhash(ixs, user_pk, recent_blockhash)
+    tx = Transaction.new_unsigned(msg)
+    return base64.b64encode(bytes(tx)).decode()
+
+
+class BlinkRequest(BaseModel):
+    account: str  # base58 pubkey du wallet utilisateur
+
+
+@app.post("/audit/action")
+async def audit_action_exec(body: BlinkRequest, repo: str = ""):
+    """
+    Blink POST — retourne une tx USDC non-signée (0.50 USDC vers agent).
+    Le client signe et broadcastera.
+    Après confirmation, appeler POST /audit {repo_url, tx_signature}.
+    """
+    from .config import CFG
+    if not repo:
+        raise HTTPException(status_code=400, detail={"error": "?repo= parameter required"})
+    if not body.account:
+        raise HTTPException(status_code=400, detail={"error": "account required"})
+    try:
+        tx_b64 = await _build_blink_tx(
+            user_pubkey_str=body.account,
+            amount_usdc=CFG["price_per_audit"],
+            memo=f"0xee:audit:{repo[:40]}",
+        )
+    except Exception as exc:
+        logger.error(f"Blink tx build error ({repo}): {exc}")
+        raise HTTPException(status_code=500, detail={"error": str(exc)})
+
+    return JSONResponse({
+        "transaction": tx_b64,
+        "message": (
+            f"Pay {CFG['price_per_audit']} USDC to audit {repo}. "
+            f"After confirming on-chain, call: "
+            f"POST {_PLATFORM}/audit "
+            f'{{"repo_url":"{repo}","tx_signature":"<sig>"}} to receive your report.'
+        ),
+    })
+
+
+@app.get("/catalog/action")
+async def catalog_action_meta():
+    """Blink GET — action metadata pour le Crypto Insights catalog."""
+    from .config import CFG
+    return JSONResponse({
+        "type": "action",
+        "icon": f"{_PLATFORM}/logo.png",
+        "title": "Crypto Insights",
+        "description": (
+            "AI-curated tech/crypto intelligence. HN + CoinGecko signals "
+            f"distilled into structured JSON. {CFG['price_per_insight']} USDC per insight."
+        ),
+        "label": "Browse Catalog",
+        "links": {
+            "actions": [
+                {
+                    "type": "external-link",
+                    "label": "Browse Insights Catalog",
+                    "href": f"{_PLATFORM}/catalog",
+                }
+            ]
+        },
+    })
+
+
 @app.get("/audit/cache/{repo_slug}")
 async def get_audit_cache(repo_slug: str):
     """
@@ -1099,6 +1314,18 @@ async def _api_proof(proof_id: str):
 @_api.get("/reputation")
 async def _api_reputation():
     return await reputation()
+
+@_api.get("/audit/action")
+async def _api_audit_action_meta(repo: str = ""):
+    return await audit_action_meta(repo)
+
+@_api.post("/audit/action")
+async def _api_audit_action_exec(body: BlinkRequest, repo: str = ""):
+    return await audit_action_exec(body, repo)
+
+@_api.get("/catalog/action")
+async def _api_catalog_action_meta():
+    return await catalog_action_meta()
 
 
 app.include_router(_api)
