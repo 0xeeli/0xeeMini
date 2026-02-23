@@ -478,7 +478,258 @@ async def get_insight(content_id: str, request: Request):
     })
 
 
+# ── Proof of Compute — vérification publique ──────────
+
+@app.get("/proof/{proof_id}")
+async def get_proof(proof_id: str):
+    """Vérifie publiquement une preuve de calcul d'audit."""
+    from .proof_of_compute import get_proof as _get_proof
+    proof = _get_proof(proof_id)
+    if not proof:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "proof_not_found", "proof_id": proof_id},
+        )
+    return JSONResponse({
+        "status": "verified",
+        "proof": proof,
+        "platform": _PLATFORM,
+    })
+
+
+@app.get("/reputation")
+async def reputation():
+    """Réputation agrégée de 0xeeMini — tous les audits prouvés."""
+    from .proof_of_compute import get_reputation_stats
+    stats = get_reputation_stats()
+    return JSONResponse({"platform": _PLATFORM, **stats})
+
+
+# ── Batch Audit ───────────────────────────────────────
+
+BATCH_PRICE_USDC = 1.50  # 2–5 repos
+
+
+class BatchAuditRequest(BaseModel):
+    repos: list[str]
+    buyer_wallet: str = ""
+    tx_signature: str = ""
+
+
+@app.post("/audit/batch")
+async def post_audit_batch(body: BatchAuditRequest):
+    """
+    Batch Fake-Dev Audit — jusqu'à 5 repos, 1.50 USDC via HTTP 402.
+
+    buyer_wallet="MOCK_..." → analyse gratuite (test/dev).
+    Sans tx_signature → 402 avec instructions de paiement.
+    Avec tx_signature valide → liste d'audits + preuves.
+    """
+    from .config import CFG
+
+    repos = [r.strip() for r in body.repos if r.strip()]
+    if not repos:
+        raise HTTPException(status_code=422, detail={"error": "repos[] requis"})
+    if len(repos) > 5:
+        raise HTTPException(
+            status_code=422,
+            detail={"error": "Maximum 5 repos par batch"},
+        )
+    if len(repos) < 2:
+        raise HTTPException(
+            status_code=422,
+            detail={"error": "Minimum 2 repos — utilisez /audit pour un seul repo"},
+        )
+
+    price = BATCH_PRICE_USDC
+
+    # ── Mock mode ──────────────────────────────────────
+    if body.buyer_wallet.startswith("MOCK_"):
+        logger.warning(f"MOCK batch audit : {repos}")
+        results = []
+        for repo_url in repos:
+            try:
+                result = await GitHubAuditor(brain=_brain).run(repo_url)
+                result["mock"] = True
+                results.append(result)
+            except GitHubAuditorError as exc:
+                results.append({"repo": repo_url, "error": str(exc)})
+        return JSONResponse({"status": "ok", "mock": True, "results": results})
+
+    # ── Sans preuve → 402 ─────────────────────────────
+    if not body.tx_signature:
+        savings = round(len(repos) * 0.50 - price, 2)
+        return JSONResponse(
+            status_code=402,
+            content={
+                "x402Version": 1,
+                "error": "payment_required",
+                "resource": "/audit/batch",
+                "repos": repos,
+                "repos_count": len(repos),
+                "price_usdc": price,
+                "savings_usdc": savings,
+                "wallet": CFG["wallet_public"],
+                "accepts": [{
+                    "scheme": "exact",
+                    "network": "solana-mainnet",
+                    "asset": USDC_MINT,
+                    "asset_name": "USDC",
+                    "decimals": 6,
+                    "amount_usdc": price,
+                    "payTo": CFG["wallet_public"],
+                    "maxTimeoutSeconds": 600,
+                    "description": f"Batch GitHub Audit — {len(repos)} repos",
+                }],
+                "instructions": (
+                    f"1. Transfer {price} USDC to {CFG['wallet_public']} on Solana. "
+                    f"2. Retry with tx_signature. "
+                    f"(savings: {savings} USDC vs individual audits)"
+                ),
+            },
+        )
+
+    # ── Vérification TX ───────────────────────────────
+    verified, amount = await _verify_solana_payment(
+        body.tx_signature,
+        expected_amount=price,
+        max_age_seconds=600,
+    )
+    if not verified or amount < price:
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "x402Version": 1,
+                "error": "payment_not_verified",
+                "required_usdc": price,
+            },
+        )
+
+    # ── Idempotency ───────────────────────────────────
+    with get_db() as conn:
+        existing = conn.execute(
+            "SELECT granted_at FROM paid_access WHERE tx_signature = ?",
+            (body.tx_signature,),
+        ).fetchone()
+    if existing:
+        return JSONResponse({"status": "already_granted", "repos": repos})
+
+    # ── Lancer les audits en séquence ─────────────────
+    now = datetime.now(timezone.utc).isoformat()
+    results = []
+    for repo_url in repos:
+        try:
+            result = await GitHubAuditor(brain=_brain).run(repo_url)
+            results.append(result)
+        except GitHubAuditorError as exc:
+            results.append({"repo": repo_url, "error": str(exc)})
+
+    # Enregistrer l'accès payant (lié au premier repo)
+    first_hash = results[0].get("content_hash", "batch") if results else "batch"
+    with get_db() as conn:
+        conn.execute(
+            """INSERT OR IGNORE INTO paid_access
+               (tx_signature, content_hash, buyer_wallet, amount_usdc, granted_at)
+               VALUES (?, ?, ?, ?, ?)""",
+            (body.tx_signature, first_hash, body.buyer_wallet, amount, now),
+        )
+
+    log_event("BATCH_AUDIT_GRANTED", {
+        "tx_signature": body.tx_signature,
+        "repos": repos,
+        "repos_count": len(repos),
+        "amount_usdc": amount,
+    })
+    logger.success(
+        f"Batch audit vendu : {len(repos)} repos | {amount} USDC | TX {body.tx_signature[:12]}…"
+    )
+
+    return JSONResponse({"status": "ok", "results": results, "repos_count": len(repos)})
+
+
 # ── Auto-découverte A2A ───────────────────────────────
+
+@app.get("/.well-known/agent.json")
+async def agent_json():
+    """
+    Standard agent.json — compatible Agentverse, Wayfinder, EIP-8004, A2A.
+    Référencé après enregistrement via : npx @emberai/agent-node register
+    """
+    from .config import CFG
+    from .proof_of_compute import get_reputation_stats
+    rep = get_reputation_stats()
+    return {
+        "schema": "agent/v1",
+        "name": _AGENT_NAME,
+        "version": _VERSION,
+        "description": (
+            "Autonomous AI agent detecting fake blockchain developers via GitHub commit analysis. "
+            "Bullshit score 0–100. Sell audits for 0.50 USDC via Solana HTTP 402."
+        ),
+        "url": _PLATFORM,
+        "logo": f"{_PLATFORM}/favicon.ico",
+        "contact": "agent@0xee.li",
+        "open_source": "https://github.com/0xee/0xeemini",
+        "autonomous": True,
+        "payment": {
+            "protocol": "HTTP402",
+            "network": "solana-mainnet",
+            "asset": "USDC",
+            "asset_mint": USDC_MINT,
+            "recipient": CFG["wallet_public"],
+        },
+        "capabilities": [
+            {
+                "id": "github-audit",
+                "name": "GitHub Fake-Dev Audit",
+                "description": (
+                    "Detect fake developer activity in crypto projects. "
+                    "Bullshit score 0-100, verdict INVEST/CAUTION/AVOID."
+                ),
+                "endpoint": f"{_PLATFORM}/audit",
+                "method": "POST",
+                "price": {"amount": str(CFG["price_per_audit"]), "currency": "USDC", "chain": "solana"},
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "repo_url": {"type": "string", "example": "bitcoin/bitcoin"},
+                        "tx_signature": {"type": "string", "description": "Solana TX proof of payment"},
+                    },
+                    "required": ["repo_url"],
+                },
+            },
+            {
+                "id": "batch-audit",
+                "name": "Portfolio Batch Audit",
+                "description": "Audit up to 5 repositories at discounted rate.",
+                "endpoint": f"{_PLATFORM}/audit/batch",
+                "method": "POST",
+                "price": {"amount": str(BATCH_PRICE_USDC), "currency": "USDC", "chain": "solana"},
+            },
+            {
+                "id": "insights",
+                "name": "Tech/Crypto Insights",
+                "description": "Curated AI-generated insights on tech and crypto trends.",
+                "endpoint": f"{_PLATFORM}/catalog",
+                "method": "GET",
+                "price": {"amount": str(CFG["price_per_insight"]), "currency": "USDC", "chain": "solana"},
+            },
+        ],
+        "proof_of_compute": {
+            "enabled": True,
+            "algorithm": "SHA256",
+            "verify_endpoint": f"{_PLATFORM}/proof/{{proof_id}}",
+            "reputation_endpoint": f"{_PLATFORM}/reputation",
+            "total_audits_proved": rep.get("total_audits_proved", 0),
+            "avg_bullshit_score": rep.get("avg_bullshit_score", 0),
+        },
+        "discovery": {
+            "ai_plugin": f"{_PLATFORM}/.well-known/ai-plugin.json",
+            "openapi": f"{_PLATFORM}/openapi.json",
+            "catalog": f"{_PLATFORM}/catalog",
+        },
+    }
+
 
 @app.get("/.well-known/ai-plugin.json")
 async def ai_plugin_manifest():
@@ -822,9 +1073,21 @@ async def _api_access(body: AccessRequest):
 async def _api_audit(body: AuditRequest):
     return await post_audit(body)
 
+@_api.post("/audit/batch")
+async def _api_audit_batch(body: BatchAuditRequest):
+    return await post_audit_batch(body)
+
 @_api.get("/audit/cache/{repo_slug}")
 async def _api_audit_cache(repo_slug: str):
     return await get_audit_cache(repo_slug)
+
+@_api.get("/proof/{proof_id}")
+async def _api_proof(proof_id: str):
+    return await get_proof(proof_id)
+
+@_api.get("/reputation")
+async def _api_reputation():
+    return await reputation()
 
 
 app.include_router(_api)

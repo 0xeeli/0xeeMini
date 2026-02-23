@@ -55,6 +55,9 @@ def load_config() -> dict:
             str(Path.home() / "0xeeMini" / "models" / "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"),
         ),
 
+        # Telegram bot (optionnel — distribution des audits)
+        "telegram_bot_token": os.getenv("TELEGRAM_BOT_TOKEN", ""),
+
         # Alertes
         "webhook_url":       os.getenv("WEBHOOK_ALERT_URL", ""),
 

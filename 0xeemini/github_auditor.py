@@ -362,6 +362,11 @@ class GitHubAuditor:
             f"(via {analysis.get('_source', '?')})"
         )
 
+        # ── Proof of Compute ───────────────────────────
+        from .proof_of_compute import generate_proof, store_proof
+        proof = generate_proof(f"{owner}/{repo}", bullshit_score, recommendation)
+        store_proof(proof)
+
         return {
             "repo": f"{owner}/{repo}",
             "content_hash": content_hash,
@@ -375,6 +380,9 @@ class GitHubAuditor:
             "fetched_at": fetched_at,
             "expires_at": expires_at,
             "metrics": payload["metrics"],
+            "proof_hash": proof["proof_hash"],
+            "proof_hash_short": proof["proof_hash_short"],
+            "proof_verify_url": proof["verify_url"],
         }
 
     # ── Fallback heuristique (sans LLM) ───────────────

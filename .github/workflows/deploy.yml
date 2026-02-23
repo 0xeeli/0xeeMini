@@ -1,0 +1,89 @@
+name: Deploy to VPS
+
+# Déclenché sur chaque push sur main
+on:
+  push:
+    branches: [main]
+
+# Évite les déploiements concurrents
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install test dependencies
+        run: |
+          pip install -q \
+            fastapi==0.111.0 \
+            httpx==0.27.0 \
+            loguru==0.7.2 \
+            python-dotenv==1.0.1 \
+            apscheduler==3.10.4 \
+            psutil==5.9.8 \
+            pytest==8.2.2 \
+            pytest-asyncio==0.23.8 \
+            anyio==4.4.0
+
+      - name: Run tests
+        run: pytest tests/ -v --tb=short
+
+  deploy:
+    name: Deploy
+    needs: test
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Sync code via rsync
+        run: |
+          rsync -avz \
+            --exclude='*.db' --exclude='*.db-shm' --exclude='*.db-wal' \
+            --exclude='logs/' --exclude='.env' --exclude='backups/' \
+            --exclude='__pycache__/' --exclude='*.pyc' --exclude='.venv/' \
+            --exclude='.git/' --exclude='models/' \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+            ./ ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:~/0xeeMini/
+
+      - name: Install dependencies + restart service
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+            -o StrictHostKeyChecking=no \
+            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} \
+            "cd ~/0xeeMini && \
+             .venv/bin/pip install -q -r requirements.txt && \
+             systemctl --user restart 0xeemini.service && \
+             sleep 3 && \
+             systemctl --user is-active 0xeemini.service"
+
+      - name: Health check
+        run: |
+          sleep 5
+          ssh -i ~/.ssh/deploy_key \
+            -o StrictHostKeyChecking=no \
+            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} \
+            "curl -sf http://localhost:8000/health | python3 -m json.tool"
+
+      - name: Notify on success
+        if: success()
+        run: |
+          echo "✅ 0xeeMini v$(cat 0xeemini/hustle_api.py | grep '_VERSION =' | head -1 | tr -d '\"' | awk '{print $3}') déployé avec succès"
