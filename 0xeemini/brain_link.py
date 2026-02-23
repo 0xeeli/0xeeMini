@@ -99,11 +99,26 @@ class BrainLink:
 
     # ── Claude API ─────────────────────────────────────
 
-    def _think_claude(self, messages: list[dict], task_type: str) -> dict:
+    def _think_claude(
+        self,
+        messages: list[dict],
+        task_type: str,
+        system_override: str | None = None,
+        max_tokens: int = 1024,
+    ) -> dict:
         api_key = self.cfg.get("claude_api_key", "")
         if not api_key:
             logger.debug("BrainLink — CLAUDE_API_KEY absent, skip")
             return {"response": None, "source": "no_claude_key", "cost_usd": 0.0}
+
+        # Extraire le message system s'il est dans le tableau (API Anthropic l'interdit)
+        system_prompt = system_override or SYSTEM_PROMPT
+        user_messages = []
+        for m in messages:
+            if m.get("role") == "system":
+                system_prompt = m["content"]  # override depuis le tableau
+            else:
+                user_messages.append(m)
 
         try:
             with httpx.Client(timeout=60) as client:
@@ -116,9 +131,9 @@ class BrainLink:
                     },
                     json={
                         "model": "claude-haiku-4-5-20251001",
-                        "max_tokens": 1024,
-                        "system": SYSTEM_PROMPT,
-                        "messages": messages,
+                        "max_tokens": max_tokens,
+                        "system": system_prompt,
+                        "messages": user_messages,
                     },
                 )
 
@@ -378,12 +393,36 @@ class BrainLink:
             "Tu réponds UNIQUEMENT en JSON valide. Zéro texte hors du JSON."
         )
 
+        # Tronquer le sample pour rester dans le budget tokens (~6k chars max)
+        sample = payload.get("commits_sample", [])
+        truncated_sample = []
+        for c in sample[:10]:  # Max 10 commits pour le LLM
+            entry = {
+                "sha": c["sha"],
+                "author": c["author"],
+                "date": c["date"],
+                "message": c["message"],
+                "stats": c["stats"],
+                "files": [
+                    {
+                        "filename": f["filename"],
+                        "status": f["status"],
+                        "additions": f["additions"],
+                        "deletions": f["deletions"],
+                        # Patch encore plus tronqué pour le LLM
+                        "patch": (f.get("patch") or "")[:150],
+                    }
+                    for f in c.get("files", [])[:3]  # Max 3 fichiers/commit
+                ],
+            }
+            truncated_sample.append(entry)
+
         user_prompt = (
             f"Analyse ces données de commits GitHub pour le repo : {repo}\n\n"
             f"MÉTRIQUES BRUTES :\n"
             f"{json.dumps(payload['metrics'], indent=2)}\n\n"
-            f"ÉCHANTILLON DES 20 DERNIERS COMMITS :\n"
-            f"{json.dumps(payload['commits_sample'], indent=2)}\n\n"
+            f"ÉCHANTILLON DES 10 DERNIERS COMMITS (3 fichiers max/commit) :\n"
+            f"{json.dumps(truncated_sample, indent=2)}\n\n"
             "Évalue ces signaux d'alerte :\n"
             "- Ratio de modifications cosmétiques (CSS, README, JSON de config)\n"
             "- Absence de travail sur les fichiers critiques (smart contracts .sol,\n"
