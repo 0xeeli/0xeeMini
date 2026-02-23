@@ -56,6 +56,12 @@ def _rec_badge(rec: str) -> str:
     }.get(rec, f"❓ {rec}")
 
 
+def _user_lang(update) -> str:
+    """Return ISO 639-1 language code for the Telegram user (default: 'en')."""
+    code = (update.effective_user.language_code or "en").split("-")[0].lower()
+    return code if code in ("fr", "en", "es", "de", "pt", "it") else "en"
+
+
 def _solana_pay_url(wallet: str, amount: float, label: str) -> str:
     return (
         f"solana:{wallet}"
@@ -155,6 +161,7 @@ async def cmd_demo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     repo_url = context.args[0]
     chat_id  = update.effective_chat.id
+    lang     = _user_lang(update)
     msg = await update.message.reply_text(
         f"🔍 Auditing <b>{repo_url}</b>…\n"
         f"<i>Fetching commits from GitHub — may take 1–3 min on large repos.</i>",
@@ -166,6 +173,7 @@ async def cmd_demo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             "repo_url":     repo_url,
             "buyer_wallet": f"MOCK_telegram_{chat_id}",
             "tx_signature": "",
+            "lang":         lang,
         })
         if resp.status_code == 200:
             await msg.edit_text(_fmt_result(resp.json(), demo=True), parse_mode="HTML")
@@ -196,15 +204,17 @@ async def cmd_audit(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     repo_url = context.args[0]
     chat_id  = update.effective_chat.id
+    lang     = _user_lang(update)
 
     # Store pending payment request
-    _PENDING[chat_id] = {"repo_urls": [repo_url], "ts": time.time(), "batch": False}
+    _PENDING[chat_id] = {"repo_urls": [repo_url], "ts": time.time(), "batch": False, "lang": lang}
 
     try:
         resp = await _api("post", "/audit", timeout=360, json={
             "repo_url":     repo_url,
             "buyer_wallet": f"tg_{chat_id}",
             "tx_signature": "",
+            "lang":         lang,
         })
     except Exception as exc:
         await update.message.reply_text(f"❌ API unavailable: {exc}")
@@ -324,6 +334,7 @@ async def cmd_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     repos    = pending["repo_urls"]
     is_batch = pending.get("batch", False)
+    lang     = pending.get("lang", _user_lang(update))
     msg      = await update.message.reply_text("⏳ Verifying Solana payment…")
 
     try:
@@ -332,12 +343,14 @@ async def cmd_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 "repos":        repos,
                 "buyer_wallet": f"tg_{chat_id}",
                 "tx_signature": tx_sig,
+                "lang":         lang,
             })
         else:
             resp = await _api("post", "/audit", timeout=360, json={
                 "repo_url":     repos[0],
                 "buyer_wallet": f"tg_{chat_id}",
                 "tx_signature": tx_sig,
+                "lang":         lang,
             })
     except Exception as exc:
         await msg.edit_text(f"❌ API error: {exc}")

@@ -514,6 +514,7 @@ class BatchAuditRequest(BaseModel):
     repos: list[str]
     buyer_wallet: str = ""
     tx_signature: str = ""
+    lang: str = "en"
 
 
 @app.post("/audit/batch")
@@ -619,7 +620,7 @@ async def post_audit_batch(body: BatchAuditRequest):
     results = []
     for repo_url in repos:
         try:
-            result = await GitHubAuditor(brain=_brain).run(repo_url)
+            result = await GitHubAuditor(brain=_brain).run(repo_url, lang=body.lang)
             results.append(result)
         except GitHubAuditorError as exc:
             results.append({"repo": repo_url, "error": str(exc)})
@@ -861,6 +862,7 @@ class AuditRequest(BaseModel):
     repo_url: str
     buyer_wallet: str = ""
     tx_signature: str = ""
+    lang: str = "en"  # ISO 639-1 — "fr" | "en" (default)
 
 
 @app.post("/audit")
@@ -893,7 +895,7 @@ async def post_audit(body: AuditRequest):
                 cached["_cached"] = True
                 logger.info(f"MOCK audit served from cache : {owner}/{repo}")
                 return JSONResponse({"status": "ok", **cached})
-            result = await auditor.run(body.repo_url)
+            result = await auditor.run(body.repo_url, lang=body.lang)
             result["mock"] = True
             return JSONResponse({"status": "ok", **result})
         except GitHubAuditorError as exc:
@@ -965,7 +967,7 @@ async def post_audit(body: AuditRequest):
 
     # ── Lancer l'audit ────────────────────────────────
     try:
-        result = await GitHubAuditor(brain=_brain).run(body.repo_url)
+        result = await GitHubAuditor(brain=_brain).run(body.repo_url, lang=body.lang)
     except GitHubAuditorError as exc:
         raise HTTPException(status_code=422, detail={"error": str(exc)})
 
