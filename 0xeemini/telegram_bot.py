@@ -115,8 +115,8 @@ def _fmt_result(r: dict, demo: bool = False) -> str:
     return "\n".join(lines)
 
 
-async def _api(method: str, path: str, **kwargs) -> httpx.Response:
-    async with httpx.AsyncClient(timeout=120) as client:
+async def _api(method: str, path: str, timeout: int = 60, **kwargs) -> httpx.Response:
+    async with httpx.AsyncClient(timeout=timeout) as client:
         return await getattr(client, method)(f"{_API}{path}", **kwargs)
 
 
@@ -156,11 +156,13 @@ async def cmd_demo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     repo_url = context.args[0]
     chat_id  = update.effective_chat.id
     msg = await update.message.reply_text(
-        f"🔍 Running demo audit for <b>{repo_url}</b>…", parse_mode="HTML"
+        f"🔍 Auditing <b>{repo_url}</b>…\n"
+        f"<i>Fetching commits from GitHub — may take 1–3 min on large repos.</i>",
+        parse_mode="HTML",
     )
 
     try:
-        resp = await _api("post", "/audit", json={
+        resp = await _api("post", "/audit", timeout=360, json={
             "repo_url":     repo_url,
             "buyer_wallet": f"MOCK_telegram_{chat_id}",
             "tx_signature": "",
@@ -175,7 +177,12 @@ async def cmd_demo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             )
     except Exception as exc:
         logger.error(f"Telegram /demo: {exc}")
-        await msg.edit_text("❌ API unavailable. Try again in a few seconds.")
+        await msg.edit_text(
+            f"❌ Audit timed out for <b>{repo_url}</b>.\n\n"
+            f"Try a smaller repo, or retry — GitHub rate limits cause delays.\n"
+            f"Ex: <code>/demo nicehash/NiceHashQuickMiner</code>",
+            parse_mode="HTML",
+        )
 
 
 async def cmd_audit(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -194,7 +201,7 @@ async def cmd_audit(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     _PENDING[chat_id] = {"repo_urls": [repo_url], "ts": time.time(), "batch": False}
 
     try:
-        resp = await _api("post", "/audit", json={
+        resp = await _api("post", "/audit", timeout=360, json={
             "repo_url":     repo_url,
             "buyer_wallet": f"tg_{chat_id}",
             "tx_signature": "",
@@ -321,13 +328,13 @@ async def cmd_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     try:
         if is_batch:
-            resp = await _api("post", "/audit/batch", json={
+            resp = await _api("post", "/audit/batch", timeout=600, json={
                 "repos":        repos,
                 "buyer_wallet": f"tg_{chat_id}",
                 "tx_signature": tx_sig,
             })
         else:
-            resp = await _api("post", "/audit", json={
+            resp = await _api("post", "/audit", timeout=360, json={
                 "repo_url":     repos[0],
                 "buyer_wallet": f"tg_{chat_id}",
                 "tx_signature": tx_sig,
