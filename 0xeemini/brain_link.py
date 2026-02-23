@@ -365,19 +365,27 @@ class BrainLink:
                     pass
             return {"response": None, "source": "samurai_error", "cost_usd": 0.0}
 
-    async def analyze_github_commits(self, payload: dict) -> dict:
+    async def analyze_github_commits(self, payload: dict, lang: str = "en") -> dict:
         """
         Analyse LLM des commits GitHub pour détecter le fake-dev.
         Priorité : Claude Haiku → Mode Samouraï (GGUF 1.5B) → fallback score=50.
+        lang: "en" (default) | "fr" | other ISO 639-1 codes → falls back to "en"
         """
         import asyncio as _asyncio
 
         repo = payload.get("repo", "unknown")
+        # Only French gets native French output; everything else → English
+        _lang = "fr" if lang.startswith("fr") else "en"
+        _lang_instruction = (
+            "Réponds en français." if _lang == "fr"
+            else "Answer in English."
+        )
 
         system_prompt = (
             "Tu es un expert en audit technique de projets blockchain et crypto.\n"
             "Tu analyses des données de commits GitHub pour détecter les équipes\n"
             "qui simulent de l'activité de développement pour tromper les investisseurs.\n"
+            f"{_lang_instruction}\n"
             "Tu réponds UNIQUEMENT en JSON valide. Zéro texte hors du JSON."
         )
 
@@ -454,9 +462,10 @@ class BrainLink:
             f"Repo: {repo}\n"
             f"Metrics: {json.dumps(payload['metrics'])}\n"
             f"Commits: {samurai_sample}\n\n"
+            f"{_lang_instruction}\n"
             "JSON only:\n"
-            "{\"bullshit_score\":<0-100>,\"verdict\":\"<15 mots max>\","
-            "\"technical_reality\":\"<50 mots max>\",\"red_flags\":[],\"green_flags\":[],"
+            "{\"bullshit_score\":<0-100>,\"verdict\":\"<15 words max>\","
+            "\"technical_reality\":\"<50 words max>\",\"red_flags\":[],\"green_flags\":[],"
             "\"recommendation\":\"INVEST|CAUTION|AVOID\",\"confidence\":<0.0-1.0>}"
         )
 

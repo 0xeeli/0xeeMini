@@ -289,7 +289,7 @@ class GitHubAuditor:
 
     # ── Pipeline principal ─────────────────────────────
 
-    async def run(self, repo_url: str) -> dict:
+    async def run(self, repo_url: str, lang: str = "en") -> dict:
         """
         Pipeline complet : fetch → métriques → LLM → stockage SQLite.
         Retourne le rapport final.
@@ -302,7 +302,7 @@ class GitHubAuditor:
 
         # ── Analyse LLM ───────────────────────────────
         if self._brain is not None:
-            analysis = await self._brain.analyze_github_commits(payload)
+            analysis = await self._brain.analyze_github_commits(payload, lang=lang)
         else:
             logger.warning("GitHubAuditor — brain absent, analyse heuristique uniquement")
             analysis = self._heuristic_fallback(payload)
