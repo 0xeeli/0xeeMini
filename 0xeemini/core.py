@@ -81,6 +81,8 @@ CREATE TABLE IF NOT EXISTS content_cache (
     key_insight   TEXT,
     actionable    TEXT,
     generated_at  TIMESTAMP,
+    expires_at    TIMESTAMP,
+    price_usdc    REAL DEFAULT 0.10,
     access_count  INTEGER DEFAULT 0
 );
 
@@ -105,9 +107,19 @@ def get_db() -> sqlite3.Connection:
 
 
 def init_db() -> None:
-    """Initialise le schéma (IF NOT EXISTS — idempotent)."""
+    """Initialise le schéma (IF NOT EXISTS — idempotent) + migrations."""
     with get_db() as conn:
         conn.executescript(_SCHEMA)
+        # Migrations — colonnes ajoutées en v0.2.0
+        for col, typedef in [
+            ("expires_at", "TIMESTAMP"),
+            ("price_usdc", "REAL DEFAULT 0.10"),
+        ]:
+            try:
+                conn.execute(f"ALTER TABLE content_cache ADD COLUMN {col} {typedef}")
+                logger.debug(f"Migration : colonne content_cache.{col} ajoutée")
+            except Exception:
+                pass  # Déjà présente
     logger.debug(f"DB initialisée : {DB_PATH}")
 
 
@@ -247,6 +259,15 @@ class BootGuardian:
                     },
                 )
             data = resp.json()
+
+            # Erreur RPC (429 rate-limit, etc.) — garder SUBMITTED, ne pas marquer FAILED
+            if data.get("error"):
+                logger.warning(
+                    f"BootGuardian — RPC error pour {tx['tx_id']} : {data['error']} "
+                    f"(TX laissée SUBMITTED)"
+                )
+                return
+
             result = data.get("result")
             if result and result.get("meta", {}).get("err") is None:
                 now = datetime.now(timezone.utc).isoformat()
@@ -259,9 +280,30 @@ class BootGuardian:
                         (now, result.get("slot"), tx["tx_id"]),
                     )
                 logger.info(f"BootGuardian — TX {tx['tx_id']} confirmée via RPC")
-            else:
+            elif result and result.get("meta", {}).get("err") is not None:
+                # TX soumise mais rejetée par Solana
                 self._mark_failed(tx["tx_id"], "rpc_not_confirmed",
-                                  "non confirmée sur Solana au boot")
+                                  f"rejetée sur Solana : {result['meta']['err']}")
+            else:
+                # result=None : TX non trouvée (propagation en cours ou expirée)
+                # Si la TX a plus de 5 minutes, probablement expirée
+                import time as _time
+                submitted_at = tx.get("submitted_at", "")
+                age_ok = True
+                if submitted_at:
+                    try:
+                        from datetime import datetime as _dt
+                        sub = _dt.fromisoformat(submitted_at.replace("Z", "+00:00"))
+                        age_ok = (_time.time() - sub.timestamp()) < 300
+                    except Exception:
+                        pass
+                if age_ok:
+                    logger.info(
+                        f"BootGuardian — TX {tx['tx_id']} non encore visible RPC (SUBMITTED conservé)"
+                    )
+                else:
+                    self._mark_failed(tx["tx_id"], "rpc_not_confirmed",
+                                      "non confirmée sur Solana au boot (> 5min)")
         except Exception as exc:
             logger.warning(f"BootGuardian — RPC query échoué pour {tx['tx_id']} : {exc}")
 

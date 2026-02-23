@@ -22,7 +22,7 @@ def load_config() -> dict:
     if not config_path.exists():
         raise FileNotFoundError(
             f"\n❌ Config introuvable : {config_path}\n"
-            f"   Lance d'abord : bash setup_secrets.sh\n"
+            f"   Crée le fichier : mkdir -p {config_path.parent} && cp .env.example {config_path}\n"
             f"   Puis remplis : nano {config_path}\n"
         )
 
@@ -38,16 +38,24 @@ def load_config() -> dict:
         "solana_rpc":        os.getenv("SOLANA_RPC_URL",
                              "https://api.mainnet-beta.solana.com"),
 
-        # Cerveau local
+        # Cerveau principal — Claude Haiku API
+        "claude_api_key":    os.getenv("CLAUDE_API_KEY", ""),
+        "claude_budget":     float(os.getenv("CLAUDE_BUDGET_MONTHLY_USD", "5.0")),
+        "claude_throttle_secs": int(os.getenv("CLAUDE_THROTTLE_SECS", "600")),
+
+        # Cerveau réflexe — GGUF bare-metal sur VPS (fast-path WAIT, fallback offline)
+        "brain_model_path":  os.getenv(
+            "BRAIN_MODEL_PATH",
+            str(Path.home() / "0xeeMini" / "models" / "qwen2.5-0.5b-instruct-q4_k_m.gguf"),
+        ),
+
+        # Ollama local (optionnel — tunnel reverse SSH ou SSH direct)
+        "ollama_tunnel_port": int(os.getenv("OLLAMA_TUNNEL_PORT", "0")),
         "local_ssh_host":    os.getenv("LOCAL_SSH_HOST", ""),
         "local_ssh_user":    os.getenv("LOCAL_SSH_USER", "pankso"),
         "local_ssh_port":    int(os.getenv("LOCAL_SSH_PORT", "22")),
         "ollama_port":       int(os.getenv("OLLAMA_PORT", "11434")),
         "brain_model":       os.getenv("BRAIN_MODEL", "qwen2.5-coder:7b"),
-
-        # Fallback LLM
-        "claude_api_key":    os.getenv("CLAUDE_API_KEY", ""),
-        "claude_budget":     float(os.getenv("CLAUDE_BUDGET_MONTHLY_USD", "2.0")),
 
         # Alertes
         "webhook_url":       os.getenv("WEBHOOK_ALERT_URL", ""),
@@ -55,6 +63,7 @@ def load_config() -> dict:
         # Finance
         "reserve_minimum":   float(os.getenv("RESERVE_MINIMUM_USDC", "15.0")),
         "price_per_insight": float(os.getenv("PRICE_PER_INSIGHT_USDC", "0.10")),
+        "price_per_audit":   float(os.getenv("PRICE_PER_AUDIT_USDC", "0.50")),
         "vps_monthly_cost":  float(os.getenv("VPS_MONTHLY_COST_USD", "5.00")),
         "current_vps_plan":  os.getenv("CURRENT_VPS_PLAN", "2GB"),
 
