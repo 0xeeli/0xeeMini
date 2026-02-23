@@ -36,6 +36,17 @@ MEMO_PROGRAM = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"
 TOKEN_PROGRAM_ID = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
 ASSOCIATED_TOKEN_PROGRAM_ID = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJe1bBX"
 
+# Solana Actions (Blinks) — headers obligatoires sur chaque réponse
+# CORSMiddleware ne les ajoute qu'en présence d'un header Origin.
+# Dialect validator n'envoie pas Origin → on les force manuellement.
+BLINK_HEADERS = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, x-action-version, x-blockchain-ids",
+    "X-Action-Version": "2.1.3",
+    "X-Blockchain-Ids": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+}
+
 
 def increment_cycle() -> None:
     global _CYCLE_COUNT
@@ -743,13 +754,16 @@ async def agent_json():
 @app.get("/.well-known/actions.json")
 async def actions_manifest():
     """Dialect/Solana Actions registry manifest — liste les Blinks de l'agent."""
-    return JSONResponse({
-        "rules": [
-            {"pathPattern": "/audit/action",    "apiPath": "/audit/action"},
-            {"pathPattern": "/audit/action/**", "apiPath": "/audit/action"},
-            {"pathPattern": "/catalog/action",  "apiPath": "/catalog/action"},
-        ]
-    })
+    return JSONResponse(
+        content={
+            "rules": [
+                {"pathPattern": "/audit/action",    "apiPath": "/audit/action"},
+                {"pathPattern": "/audit/action/**", "apiPath": "/audit/action"},
+                {"pathPattern": "/catalog/action",  "apiPath": "/catalog/action"},
+            ]
+        },
+        headers=BLINK_HEADERS,
+    )
 
 
 @app.get("/.well-known/ai-plugin.json")
@@ -1014,6 +1028,12 @@ async def post_audit(body: AuditRequest):
     return JSONResponse({"status": "ok", **result})
 
 
+@app.options("/audit/action")
+async def audit_action_options():
+    """OPTIONS preflight pour Blinks — Dialect validator + wallets."""
+    return JSONResponse(content={}, headers=BLINK_HEADERS)
+
+
 @app.get("/audit/action")
 async def audit_action_meta(repo: str = ""):
     """
@@ -1023,54 +1043,60 @@ async def audit_action_meta(repo: str = ""):
     from .config import CFG
     price = CFG["price_per_audit"]
     if repo:
-        return JSONResponse({
+        return JSONResponse(
+            content={
+                "type": "action",
+                "icon": f"{_PLATFORM}/logo.png",
+                "title": f"Audit {repo}",
+                "description": (
+                    f"Detect fake developer activity in {repo}. "
+                    "Bullshit score 0-100, verdict INVEST / CAUTION / AVOID. "
+                    "SHA256 proof-of-compute included."
+                ),
+                "label": f"Pay {price} USDC → Audit",
+                "links": {
+                    "actions": [
+                        {
+                            "type": "transaction",
+                            "label": f"Pay {price} USDC → Audit",
+                            "href": f"/audit/action?repo={repo}",
+                        }
+                    ]
+                },
+            },
+            headers=BLINK_HEADERS,
+        )
+    return JSONResponse(
+        content={
             "type": "action",
             "icon": f"{_PLATFORM}/logo.png",
-            "title": f"Audit {repo}",
+            "title": "GitHub Fake-Dev Audit",
             "description": (
-                f"Detect fake developer activity in {repo}. "
+                "Detect wash development, cosmetic-only commits, and fake team activity. "
                 "Bullshit score 0-100, verdict INVEST / CAUTION / AVOID. "
-                "SHA256 proof-of-compute included."
+                "SHA256 proof-of-compute on every result."
             ),
-            "label": f"Pay {price} USDC → Audit",
+            "label": f"Audit for {price} USDC",
             "links": {
                 "actions": [
                     {
                         "type": "transaction",
-                        "label": f"Pay {price} USDC → Audit",
-                        "href": f"/audit/action?repo={repo}",
+                        "label": f"Audit for {price} USDC",
+                        "href": "/audit/action?repo={repo}",
+                        "parameters": [
+                            {
+                                "name": "repo",
+                                "label": "GitHub repo (e.g. bitcoin/bitcoin)",
+                                "required": True,
+                                "type": "text",
+                            }
+                        ],
                     }
                 ]
             },
-        })
-    return JSONResponse({
-        "type": "action",
-        "icon": f"{_PLATFORM}/logo.png",
-        "title": "GitHub Fake-Dev Audit",
-        "description": (
-            "Detect wash development, cosmetic-only commits, and fake team activity. "
-            "Bullshit score 0-100, verdict INVEST / CAUTION / AVOID. "
-            "SHA256 proof-of-compute on every result."
-        ),
-        "label": f"Audit for {price} USDC",
-        "links": {
-            "actions": [
-                {
-                    "type": "transaction",
-                    "label": f"Audit for {price} USDC",
-                    "href": "/audit/action?repo={repo}",
-                    "parameters": [
-                        {
-                            "name": "repo",
-                            "label": "GitHub repo (e.g. bitcoin/bitcoin)",
-                            "required": True,
-                            "type": "text",
-                        }
-                    ],
-                }
-            ]
         },
-    })
+        headers=BLINK_HEADERS,
+    )
 
 
 def _derive_ata(wallet_str: str, mint_str: str = USDC_MINT) -> str:
@@ -1173,40 +1199,52 @@ async def audit_action_exec(body: BlinkRequest, repo: str = ""):
         logger.error(f"Blink tx build error ({repo}): {exc}")
         raise HTTPException(status_code=500, detail={"error": str(exc)})
 
-    return JSONResponse({
-        "transaction": tx_b64,
-        "message": (
-            f"Pay {CFG['price_per_audit']} USDC to audit {repo}. "
-            f"After confirming on-chain, call: "
-            f"POST {_PLATFORM}/audit "
-            f'{{"repo_url":"{repo}","tx_signature":"<sig>"}} to receive your report.'
-        ),
-    })
+    return JSONResponse(
+        content={
+            "transaction": tx_b64,
+            "message": (
+                f"Pay {CFG['price_per_audit']} USDC to audit {repo}. "
+                f"After confirming on-chain, call: "
+                f"POST {_PLATFORM}/audit "
+                f'{{"repo_url":"{repo}","tx_signature":"<sig>"}} to receive your report.'
+            ),
+        },
+        headers=BLINK_HEADERS,
+    )
+
+
+@app.options("/catalog/action")
+async def catalog_action_options():
+    """OPTIONS preflight pour Blinks catalog."""
+    return JSONResponse(content={}, headers=BLINK_HEADERS)
 
 
 @app.get("/catalog/action")
 async def catalog_action_meta():
     """Blink GET — action metadata pour le Crypto Insights catalog."""
     from .config import CFG
-    return JSONResponse({
-        "type": "action",
-        "icon": f"{_PLATFORM}/logo.png",
-        "title": "Crypto Insights",
-        "description": (
-            "AI-curated tech/crypto intelligence. HN + CoinGecko signals "
-            f"distilled into structured JSON. {CFG['price_per_insight']} USDC per insight."
-        ),
-        "label": "Browse Catalog",
-        "links": {
-            "actions": [
-                {
-                    "type": "external-link",
-                    "label": "Browse Insights Catalog",
-                    "href": f"{_PLATFORM}/catalog",
-                }
-            ]
+    return JSONResponse(
+        content={
+            "type": "action",
+            "icon": f"{_PLATFORM}/logo.png",
+            "title": "Crypto Insights",
+            "description": (
+                "AI-curated tech/crypto intelligence. HN + CoinGecko signals "
+                f"distilled into structured JSON. {CFG['price_per_insight']} USDC per insight."
+            ),
+            "label": "Browse Catalog",
+            "links": {
+                "actions": [
+                    {
+                        "type": "external-link",
+                        "label": "Browse Insights Catalog",
+                        "href": f"{_PLATFORM}/catalog",
+                    }
+                ]
+            },
         },
-    })
+        headers=BLINK_HEADERS,
+    )
 
 
 @app.get("/audit/cache/{repo_slug}")
@@ -1315,6 +1353,10 @@ async def _api_proof(proof_id: str):
 async def _api_reputation():
     return await reputation()
 
+@_api.options("/audit/action")
+async def _api_audit_action_options():
+    return await audit_action_options()
+
 @_api.get("/audit/action")
 async def _api_audit_action_meta(repo: str = ""):
     return await audit_action_meta(repo)
@@ -1322,6 +1364,10 @@ async def _api_audit_action_meta(repo: str = ""):
 @_api.post("/audit/action")
 async def _api_audit_action_exec(body: BlinkRequest, repo: str = ""):
     return await audit_action_exec(body, repo)
+
+@_api.options("/catalog/action")
+async def _api_catalog_action_options():
+    return await catalog_action_options()
 
 @_api.get("/catalog/action")
 async def _api_catalog_action_meta():
