@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /.well-known/agent.json
+Allow: /.well-known/actions.json
+
+User-agent: GPTBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
