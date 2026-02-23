@@ -9,6 +9,7 @@ import signal
 import sys
 import threading
 from datetime import datetime, timezone
+from importlib import import_module
 
 import psutil
 import uvicorn
@@ -305,6 +306,23 @@ async def run() -> None:
 
     logger.info("Démarrage du serveur HustleAPI...")
     _start_api_server()
+
+    # ── Telegram bot (optionnel — activé si TELEGRAM_BOT_TOKEN défini) ──
+    if CFG.get("telegram_bot_token"):
+        def _telegram_thread():
+            from .telegram_bot import run_bot
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                loop.run_until_complete(run_bot(CFG))
+            except Exception as exc:
+                logger.error(f"Telegram bot arrêté : {exc}")
+            finally:
+                loop.close()
+
+        t = threading.Thread(target=_telegram_thread, daemon=True, name="telegram")
+        t.start()
+        logger.info("🤖 Telegram bot démarré")
 
     _setup_signal_handlers()
 

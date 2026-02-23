@@ -3,818 +3,773 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>0xeeMini — Autonomous Agent</title>
+<title>0xeeMini — Autonomous GitHub Audit Agent</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --bg: #0a0a0f;
-    --bg1: #0f0f17;
-    --bg2: #13131e;
-    --border: rgba(255,255,255,0.06);
-    --border-glow: rgba(0,255,135,0.2);
-    --green: #00ff87;
-    --green-dim: rgba(0,255,135,0.15);
-    --amber: #ffb700;
-    --amber-dim: rgba(255,183,0,0.15);
-    --red: #ff4444;
-    --red-dim: rgba(255,68,68,0.15);
-    --blue: #3b82f6;
-    --blue-dim: rgba(59,130,246,0.15);
-    --purple: #a855f7;
-    --purple-dim: rgba(168,85,247,0.15);
-    --indigo: #6366f1;
-    --indigo-dim: rgba(99,102,241,0.18);
-    --teal: #14b8a6;
-    --teal-dim: rgba(20,184,166,0.15);
-    --gray: #4a4a5a;
-    --gray-dim: rgba(74,74,90,0.2);
-    --text: #c8c8d8;
-    --text-dim: #5a5a70;
-    --text-bright: #f0f0ff;
-    --mono: 'JetBrains Mono', monospace;
-  }
-
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  html { scroll-behavior: smooth; }
-
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--mono);
-    font-size: 12px;
-    line-height: 1.6;
-    min-height: 100vh;
-    overflow-x: hidden;
-  }
-
-  /* CRT scanlines */
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background: repeating-linear-gradient(
-      0deg,
-      transparent,
-      transparent 2px,
-      rgba(0,0,0,0.03) 2px,
-      rgba(0,0,0,0.03) 4px
-    );
-    pointer-events: none;
-    z-index: 1000;
-  }
-
-  /* Noise overlay */
-  body::after {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
-    pointer-events: none;
-    z-index: 999;
-    opacity: 0.4;
-  }
-
-  /* ── Countdown bar ─────────────────────────── */
-  #countdown-bar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    height: 2px;
-    background: linear-gradient(90deg, var(--green), var(--teal));
-    transition: width 1s linear;
-    z-index: 100;
-    box-shadow: 0 0 8px var(--green);
-  }
-
-  /* ── Layout ────────────────────────────────── */
-  .container {
-    max-width: 1100px;
-    margin: 0 auto;
-    padding: 0 24px;
-  }
-
-  /* ── Header ────────────────────────────────── */
-  header {
-    padding: 28px 0 20px;
-    border-bottom: 1px solid var(--border);
-    margin-bottom: 28px;
-  }
-
-  .header-inner {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 12px;
-  }
-
-  .logo {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-  }
-
-  .logo-text {
-    font-size: 22px;
-    font-weight: 700;
-    color: var(--text-bright);
-    letter-spacing: -0.5px;
-  }
-
-  .logo-text span {
-    color: var(--green);
-  }
-
-  .live-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--green);
-    box-shadow: 0 0 0 0 rgba(0,255,135,0.4);
-    animation: pulse 2s infinite;
-    flex-shrink: 0;
-  }
-
-  @keyframes pulse {
-    0%   { box-shadow: 0 0 0 0 rgba(0,255,135,0.4); }
-    70%  { box-shadow: 0 0 0 8px rgba(0,255,135,0); }
-    100% { box-shadow: 0 0 0 0 rgba(0,255,135,0); }
-  }
-
-  .header-right {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .badge {
-    display: inline-flex;
-    align-items: center;
-    padding: 3px 8px;
-    border-radius: 4px;
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-  }
-
-  .badge-version {
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    color: var(--text-dim);
-  }
-
-  .badge-network {
-    background: var(--green-dim);
-    border: 1px solid rgba(0,255,135,0.25);
-    color: var(--green);
-  }
-
-  #last-update {
-    font-size: 10px;
-    color: var(--text-dim);
-  }
-
-  /* ── Section labels ────────────────────────── */
-  .section-label {
-    font-size: 9px;
-    font-weight: 600;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    color: var(--text-dim);
-    margin-bottom: 12px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .section-label::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: var(--border);
-  }
-
-  /* ── Stat cards ────────────────────────────── */
-  .stats-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 12px;
-    margin-bottom: 28px;
-  }
-
-  .stat-card {
-    background: var(--bg1);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 18px 20px;
-    position: relative;
-    overflow: hidden;
-    transition: border-color 0.2s;
-  }
-
-  .stat-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 2px;
-    border-radius: 8px 8px 0 0;
-  }
-
-  .stat-card.green::before  { background: var(--green); box-shadow: 0 0 12px var(--green); }
-  .stat-card.gray::before   { background: var(--gray); }
-  .stat-card.blue::before   { background: var(--blue); }
-  .stat-card.purple::before { background: var(--purple); }
-
-  .stat-label {
-    font-size: 9px;
-    font-weight: 600;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--text-dim);
-    margin-bottom: 8px;
-  }
-
-  .stat-value {
-    font-size: 26px;
-    font-weight: 700;
-    line-height: 1;
-    letter-spacing: -1px;
-  }
-
-  .stat-card.green .stat-value  { color: var(--green); }
-  .stat-card.gray .stat-value   { color: var(--text); }
-  .stat-card.blue .stat-value   { color: var(--blue); }
-  .stat-card.purple .stat-value { color: var(--purple); }
-
-  .stat-sub {
-    font-size: 10px;
-    color: var(--text-dim);
-    margin-top: 6px;
-  }
-
-  /* ── Main grid ─────────────────────────────── */
-  .main-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    margin-bottom: 12px;
-  }
-
-  /* ── Panel ─────────────────────────────────── */
-  .panel {
-    background: var(--bg1);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 20px;
-  }
-
-  /* ── Brain section ─────────────────────────── */
-  .brain-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-bottom: 14px;
-    padding-bottom: 14px;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .brain-row:last-child {
-    margin-bottom: 0;
-    padding-bottom: 0;
-    border-bottom: none;
-  }
-
-  .brain-key {
-    font-size: 10px;
-    color: var(--text-dim);
-    letter-spacing: 0.05em;
-  }
-
-  .chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 4px 10px;
-    border-radius: 100px;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-    border: 1px solid transparent;
-  }
-
-  .chip::before {
-    content: '';
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
-  }
-
-  .chip-WAIT           { background: var(--gray-dim);   border-color: var(--gray);   color: var(--text-dim); }
-  .chip-WAIT::before   { background: var(--gray); }
-  .chip-EXECUTE_TRANSFER           { background: var(--amber-dim); border-color: var(--amber);  color: var(--amber); }
-  .chip-EXECUTE_TRANSFER::before   { background: var(--amber); }
-  .chip-RUN_HUSTLE     { background: var(--blue-dim);   border-color: var(--blue);   color: var(--blue); }
-  .chip-RUN_HUSTLE::before { background: var(--blue); }
-  .chip-ALERT_OWNER    { background: var(--purple-dim); border-color: var(--purple); color: var(--purple); }
-  .chip-ALERT_OWNER::before { background: var(--purple); }
-  .chip-ABORT          { background: var(--red-dim);    border-color: var(--red);    color: var(--red); }
-  .chip-ABORT::before  { background: var(--red); }
-
-  .chip-claude_api     { background: var(--indigo-dim); border-color: var(--indigo); color: var(--indigo); }
-  .chip-claude_api::before { background: var(--indigo); }
-  .chip-reflex_gguf    { background: var(--teal-dim);   border-color: var(--teal);   color: var(--teal); }
-  .chip-reflex_gguf::before { background: var(--teal); }
-  .chip-fallback       { background: var(--red-dim);    border-color: var(--red);    color: var(--red); }
-  .chip-fallback::before { background: var(--red); }
-  .chip-default        { background: var(--gray-dim);   border-color: var(--gray);   color: var(--text-dim); }
-  .chip-default::before { background: var(--gray); }
-
-  .chip-yes { background: var(--green-dim);  border-color: var(--green);  color: var(--green); }
-  .chip-yes::before { background: var(--green); }
-  .chip-no  { background: var(--amber-dim);  border-color: var(--amber);  color: var(--amber); }
-  .chip-no::before { background: var(--amber); }
-
-  /* ── Transactions ──────────────────────────── */
-  .tx-table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-
-  .tx-table th {
-    font-size: 9px;
-    font-weight: 600;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--text-dim);
-    text-align: left;
-    padding: 0 0 10px;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .tx-table td {
-    padding: 10px 0;
-    border-bottom: 1px solid var(--border);
-    font-size: 11px;
-    vertical-align: middle;
-  }
-
-  .tx-table tr:last-child td { border-bottom: none; }
-
-  .tx-table td:last-child { text-align: right; }
-
-  .status-chip {
-    display: inline-flex;
-    padding: 2px 7px;
-    border-radius: 4px;
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-
-  .status-CONFIRMED { background: var(--green-dim);  color: var(--green); }
-  .status-PENDING   { background: var(--amber-dim);  color: var(--amber); }
-  .status-FAILED    { background: var(--red-dim);    color: var(--red); }
-  .status-SIGNED    { background: var(--blue-dim);   color: var(--blue); }
-  .status-SUBMITTED { background: var(--indigo-dim); color: var(--indigo); }
-
-  .tx-hash {
-    color: var(--text-dim);
-    text-decoration: none;
-    font-size: 10px;
-    transition: color 0.15s;
-  }
-
-  .tx-hash:hover { color: var(--green); }
-
-  .tx-empty {
-    text-align: center;
-    padding: 24px 0;
-    color: var(--text-dim);
-    font-size: 11px;
-  }
-
-  /* ── Wallet section ────────────────────────── */
-  .wallet-full {
-    margin-bottom: 28px;
-  }
-
-  .wallet-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 0;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .wallet-row:last-child { border-bottom: none; }
-
-  .wallet-role {
-    font-size: 9px;
-    font-weight: 600;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--text-dim);
-    width: 56px;
-    flex-shrink: 0;
-  }
-
-  .wallet-addr {
-    flex: 1;
-    color: var(--text);
-    font-size: 11px;
-    word-break: break-all;
-    letter-spacing: 0.02em;
-  }
-
-  .copy-btn {
-    background: none;
-    border: 1px solid var(--border);
-    color: var(--text-dim);
-    cursor: pointer;
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-family: var(--mono);
-    font-size: 9px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    transition: all 0.15s;
-    flex-shrink: 0;
-  }
-
-  .copy-btn:hover { border-color: var(--green); color: var(--green); }
-  .copy-btn.copied { border-color: var(--green); color: var(--green); background: var(--green-dim); }
-
-  /* ── Footer ────────────────────────────────── */
-  footer {
-    border-top: 1px solid var(--border);
-    padding: 20px 0;
-    margin-top: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 12px;
-  }
-
-  .footer-left {
-    font-size: 10px;
-    color: var(--text-dim);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .footer-sep { color: var(--border); }
-
-  .footer-right a {
-    font-size: 10px;
-    color: var(--text-dim);
-    text-decoration: none;
-    transition: color 0.15s;
-  }
-
-  .footer-right a:hover { color: var(--green); }
-
-  /* ── Fade animation ────────────────────────── */
-  @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(3px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-
-  .fade-in { animation: fadeIn 0.35s ease forwards; }
-
-  /* ── Error state ───────────────────────────── */
-  .error-state {
-    text-align: center;
-    padding: 40px;
-    color: var(--text-dim);
-  }
-
-  .error-state .error-icon { font-size: 24px; margin-bottom: 8px; }
-  .error-state p { font-size: 11px; }
-
-  /* ── Loading ───────────────────────────────── */
-  .loading { color: var(--text-dim); font-size: 11px; }
-
-  @keyframes blink {
-    0%, 100% { opacity: 1; }
-    50%       { opacity: 0; }
-  }
-
-  .cursor::after {
-    content: '█';
-    animation: blink 1s step-end infinite;
-    color: var(--green);
-  }
-
-  /* ── Responsive ────────────────────────────── */
-  @media (max-width: 768px) {
-    .stats-grid { grid-template-columns: repeat(2, 1fr); }
-    .main-grid  { grid-template-columns: 1fr; }
-    .stat-value { font-size: 20px; }
-  }
-
-  @media (max-width: 480px) {
-    .stats-grid { grid-template-columns: 1fr 1fr; }
-    .header-right { display: none; }
-    .wallet-addr { font-size: 9px; }
-  }
+:root {
+  --bg:       #050508;
+  --bg2:      #080810;
+  --bg3:      #0c0c16;
+  --green:    #00ff88;
+  --green-d:  #00c060;
+  --green-g:  rgba(0,255,136,.12);
+  --blue:     #3b82f6;
+  --amber:    #f59e0b;
+  --red:      #ef4444;
+  --text:     #a8b4c8;
+  --text-d:   #3a4455;
+  --border:   #131820;
+  --border2:  #1e2535;
+  --mono:     'JetBrains Mono', monospace;
+}
+
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+
+body{
+  font-family:var(--mono);
+  background:var(--bg);
+  color:var(--text);
+  min-height:100vh;
+  overflow-x:hidden;
+  cursor:crosshair;
+}
+
+/* ── REFRESH BAR ── */
+#rbar{
+  position:fixed;top:0;left:0;right:0;z-index:200;
+  height:2px;background:var(--green);
+  box-shadow:0 0 12px var(--green);
+  transform-origin:left;
+  will-change:transform;
+}
+
+/* ── NAV ── */
+nav{
+  position:fixed;top:0;left:0;right:0;z-index:100;
+  height:44px;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 1.5rem;
+  background:rgba(5,5,8,.96);
+  border-bottom:1px solid var(--border);
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+}
+.nav-id{
+  font-size:.75rem;font-weight:800;
+  color:var(--green);letter-spacing:.08em;
+}
+.nav-id span{color:var(--text-d)}
+.nav-links{
+  display:flex;gap:1.25rem;list-style:none;
+}
+.nav-links a{
+  font-size:.65rem;color:var(--text-d);
+  text-decoration:none;letter-spacing:.08em;
+  transition:color .15s;
+}
+.nav-links a:hover{color:var(--green)}
+.nav-right{display:flex;align-items:center;gap:.75rem}
+.dot{
+  width:6px;height:6px;border-radius:50%;
+  background:var(--green);
+  box-shadow:0 0 6px var(--green);
+  animation:pulse 2s ease-in-out infinite;
+}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.nav-status{font-size:.6rem;color:var(--green);letter-spacing:.15em}
+
+/* ── HERO ── */
+.hero{
+  min-height:100vh;
+  display:grid;
+  grid-template-columns:1fr 360px;
+  grid-template-rows:1fr auto;
+  padding:5rem 1.5rem 3rem;
+  gap:0;
+  position:relative;
+  overflow:hidden;
+}
+
+/* Grid background */
+.hero::after{
+  content:'';position:absolute;inset:0;
+  background-image:
+    linear-gradient(var(--border) 1px,transparent 1px),
+    linear-gradient(90deg,var(--border) 1px,transparent 1px);
+  background-size:48px 48px;
+  opacity:.5;pointer-events:none;z-index:0;
+}
+/* Scanlines */
+.hero::before{
+  content:'';position:absolute;inset:0;z-index:1;
+  background:repeating-linear-gradient(
+    0deg,
+    transparent,transparent 3px,
+    rgba(0,255,136,.018) 3px,rgba(0,255,136,.018) 4px
+  );
+  pointer-events:none;
+}
+/* Glow vignette */
+.hero-glow{
+  position:absolute;top:20%;left:5%;
+  width:500px;height:400px;
+  background:radial-gradient(ellipse,rgba(0,255,136,.06) 0%,transparent 70%);
+  pointer-events:none;z-index:0;
+}
+
+.hero-main{
+  position:relative;z-index:2;
+  display:flex;flex-direction:column;justify-content:center;
+  padding-right:3rem;
+}
+
+.hero-eyebrow{
+  font-size:.62rem;color:var(--green);
+  letter-spacing:.2em;text-transform:uppercase;
+  margin-bottom:1.5rem;
+  opacity:0;animation:fadeUp .5s .1s forwards;
+}
+.hero-eyebrow::before{content:'// ';color:var(--text-d)}
+
+h1{
+  font-size:clamp(2.8rem,7vw,5.5rem);
+  font-weight:800;line-height:.95;
+  letter-spacing:-.03em;color:#fff;
+  margin-bottom:2rem;
+  opacity:0;animation:fadeUp .5s .25s forwards;
+}
+h1 .g{color:var(--green)}
+h1 .d{color:var(--text-d)}
+.cursor-blink{
+  display:inline-block;
+  width:.5em;height:.85em;
+  background:var(--green);
+  margin-left:2px;vertical-align:-.05em;
+  animation:blink 1s step-end infinite;
+}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+
+.hero-tag{
+  font-size:clamp(.85rem,1.8vw,1.05rem);
+  color:var(--text);line-height:1.55;
+  margin-bottom:.75rem;
+  opacity:0;animation:fadeUp .5s .4s forwards;
+}
+.hero-sub{
+  font-size:.75rem;color:var(--text-d);
+  margin-bottom:2.5rem;line-height:1.6;
+  opacity:0;animation:fadeUp .5s .5s forwards;
+}
+.hero-sub em{color:var(--amber);font-style:normal}
+
+.ctas{
+  display:flex;gap:.75rem;flex-wrap:wrap;
+  margin-bottom:3rem;
+  opacity:0;animation:fadeUp .5s .65s forwards;
+}
+.btn{
+  display:inline-flex;align-items:center;gap:.5rem;
+  padding:.65rem 1.25rem;
+  font-family:var(--mono);font-size:.72rem;font-weight:700;
+  letter-spacing:.05em;cursor:pointer;
+  text-decoration:none;border:none;
+  transition:all .2s;
+}
+.btn-g{background:var(--green);color:#000}
+.btn-g:hover{
+  background:#00ffaa;
+  box-shadow:0 0 24px rgba(0,255,136,.45);
+  transform:translateY(-2px);
+}
+.btn-o{
+  background:transparent;color:var(--text);
+  border:1px solid var(--border2);
+}
+.btn-o:hover{border-color:var(--green);color:var(--green)}
+
+/* Hero live strip */
+.hero-strip{
+  display:flex;gap:2.5rem;
+  padding-top:2rem;
+  border-top:1px solid var(--border);
+  opacity:0;animation:fadeUp .5s .8s forwards;
+  flex-wrap:wrap;
+}
+.hs-item{}
+.hs-val{
+  font-size:1.4rem;font-weight:800;color:var(--green);
+  line-height:1;transition:opacity .3s;
+}
+.hs-val.b{color:var(--blue)}
+.hs-val.a{color:var(--amber)}
+.hs-val.w{color:#fff;font-size:1rem}
+.hs-lbl{
+  font-size:.58rem;color:var(--text-d);
+  letter-spacing:.12em;text-transform:uppercase;
+  margin-top:.25rem;
+}
+
+/* Right panel — data ticker */
+.hero-ticker{
+  position:relative;z-index:2;
+  border-left:1px solid var(--border);
+  padding-left:1.5rem;
+  display:flex;flex-direction:column;gap:.75rem;
+  justify-content:center;
+  opacity:0;animation:fadeRight .6s .9s forwards;
+}
+@keyframes fadeRight{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:none}}
+
+.ticker-label{
+  font-size:.55rem;color:var(--text-d);
+  letter-spacing:.18em;text-transform:uppercase;
+  border-bottom:1px solid var(--border);
+  padding-bottom:.5rem;margin-bottom:.25rem;
+}
+.ticker-row{
+  display:flex;justify-content:space-between;align-items:baseline;
+  gap:1rem;font-size:.7rem;
+}
+.ticker-key{color:var(--text-d)}
+.ticker-val{color:#fff;font-weight:700}
+.ticker-val.g{color:var(--green)}
+.ticker-val.b{color:var(--blue)}
+.ticker-val.a{color:var(--amber)}
+
+.ticker-endpoint{
+  margin-top:.5rem;
+  padding:.4rem .75rem;
+  background:var(--bg3);
+  border:1px solid var(--border);
+  font-size:.6rem;color:var(--green);
+  word-break:break-all;line-height:1.5;
+}
+
+/* ── SECTION COMMON ── */
+.section{
+  padding:5rem 1.5rem;
+  max-width:960px;margin:0 auto;
+}
+.sec-label{
+  font-size:.58rem;color:var(--green);
+  letter-spacing:.22em;text-transform:uppercase;
+  margin-bottom:1rem;
+}
+.sec-label::before{content:'[ '}
+.sec-label::after{content:' ]'}
+h2{font-size:1.4rem;font-weight:800;color:#fff;margin-bottom:.4rem}
+.sec-sub{font-size:.72rem;color:var(--text-d);margin-bottom:2.5rem;line-height:1.6}
+
+hr.div{border:none;border-top:1px solid var(--border);margin:0}
+
+/* ── SERVICES ── */
+.srv-grid{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:1px;background:var(--border);
+  border:1px solid var(--border);
+}
+.srv{
+  background:var(--bg2);
+  padding:2rem 1.5rem;
+  display:flex;flex-direction:column;gap:1rem;
+  position:relative;overflow:hidden;
+  transition:background .25s;
+}
+.srv::before{
+  content:'';position:absolute;inset:0;
+  background:var(--green-g);opacity:0;transition:opacity .3s;
+}
+.srv:hover::before{opacity:1}
+.srv:hover{
+  box-shadow:inset 0 0 0 1px var(--green-d);
+}
+.srv-icon{font-size:1.5rem;line-height:1}
+.srv-name{font-size:.9rem;font-weight:800;color:#fff}
+.srv-desc{font-size:.68rem;color:var(--text-d);line-height:1.7;flex:1}
+.srv-price{font-size:1.3rem;font-weight:800;color:var(--green)}
+.srv-cta{
+  display:block;font-size:.62rem;
+  border:1px solid var(--border2);
+  padding:.5rem;text-align:center;
+  text-decoration:none;color:var(--text-d);
+  font-family:var(--mono);
+  transition:all .2s;cursor:pointer;
+}
+.srv-cta:hover{border-color:var(--green);color:var(--green);background:var(--green-g)}
+
+/* ── TERMINAL ── */
+.term{
+  background:#000;
+  border:1px solid var(--border2);
+  overflow:hidden;
+}
+.term-bar{
+  background:#0d0d12;
+  padding:.55rem 1rem;
+  display:flex;align-items:center;gap:.5rem;
+  border-bottom:1px solid var(--border);
+}
+.td{width:10px;height:10px;border-radius:50%}
+.td.r{background:#ff5f57}.td.y{background:#ffbd2e}.td.g{background:#28ca41}
+.term-title{
+  font-size:.6rem;color:var(--text-d);
+  flex:1;text-align:center;letter-spacing:.08em;
+}
+.term-body{
+  padding:1.5rem;font-size:.72rem;line-height:2;
+  overflow-x:auto;
+}
+.tc{color:#2d3748}
+.tm{color:var(--amber);font-weight:700}
+.tp{color:#e2e8f0}
+.tk{color:var(--blue)}
+.tv{color:var(--green)}
+.t402{color:var(--amber);font-weight:700}
+.t200{color:var(--green);font-weight:700}
+.tar{color:var(--text-d)}
+
+/* ── LIVE STATS ── */
+.stats-grid{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:1px;background:var(--border);
+  border:1px solid var(--border);
+  margin-bottom:1rem;
+}
+.stat{
+  background:var(--bg2);
+  padding:1.5rem 1.25rem;
+}
+.stat-lbl{
+  font-size:.58rem;color:var(--text-d);
+  letter-spacing:.12em;text-transform:uppercase;margin-bottom:.6rem;
+}
+.stat-val{
+  font-size:1.8rem;font-weight:800;color:var(--green);
+  transition:opacity .3s;line-height:1;
+}
+.stat-val.b{color:var(--blue)}
+.stat-val.a{color:var(--amber)}
+.stat-val.w{color:#fff;font-size:1.2rem;line-height:1.3}
+.updating{opacity:.25}
+
+.dbadge{
+  display:inline-block;
+  padding:.25rem .6rem;
+  font-size:.7rem;font-weight:700;
+  border:1px solid;
+  transition:opacity .3s;
+}
+.dw{color:var(--text-d);border-color:var(--text-d)}
+.de{color:var(--amber);border-color:var(--amber)}
+.da{color:var(--red);border-color:var(--red)}
+.dh{color:var(--blue);border-color:var(--blue)}
+
+.stats-meta{
+  font-size:.6rem;color:var(--text-d);
+  text-align:right;
+}
+
+/* ── FOOTER ── */
+footer{
+  border-top:1px solid var(--border);
+  padding:2rem 1.5rem;
+  text-align:center;
+}
+.footer-links{
+  display:flex;justify-content:center;
+  gap:1.5rem;margin-bottom:1rem;
+  flex-wrap:wrap;
+}
+.footer-links a{
+  font-size:.65rem;color:var(--text-d);
+  text-decoration:none;letter-spacing:.05em;
+  transition:color .15s;
+}
+.footer-links a:hover{color:var(--green)}
+.footer-tag{font-size:.65rem;color:var(--text-d)}
+.footer-copy{font-size:.55rem;color:var(--border2);margin-top:.75rem;letter-spacing:.1em}
+
+/* ── ANIMATIONS ── */
+@keyframes fadeUp{
+  from{opacity:0;transform:translateY(14px)}
+  to{opacity:1;transform:none}
+}
+
+/* ── RESPONSIVE ── */
+@media(max-width:900px){
+  .hero{grid-template-columns:1fr;grid-template-rows:auto}
+  .hero-ticker{border-left:none;border-top:1px solid var(--border);padding-left:0;padding-top:1.5rem;margin-top:2rem}
+  .srv-grid{grid-template-columns:1fr}
+  .stats-grid{grid-template-columns:1fr 1fr}
+  nav .nav-links{display:none}
+  h1{font-size:2.5rem}
+}
+@media(max-width:500px){
+  .stats-grid{grid-template-columns:1fr}
+  .hero-strip{gap:1.5rem}
+  .ctas{flex-direction:column}
+}
 </style>
 </head>
 <body>
 
-<div id="countdown-bar" style="width:100%"></div>
+<div id="rbar"></div>
 
-<div class="container">
+<nav>
+  <div class="nav-id">0xee<span>Mini_</span></div>
+  <ul class="nav-links">
+    <li><a href="#services">Services</a></li>
+    <li><a href="#protocol">Protocol</a></li>
+    <li><a href="#live">Live</a></li>
+    <li><a href="/catalog" target="_blank">/catalog</a></li>
+    <li><a href="/.well-known/agent.json" target="_blank">agent.json</a></li>
+  </ul>
+  <div class="nav-right">
+    <div class="dot"></div>
+    <div class="nav-status" id="nav-status">ONLINE</div>
+  </div>
+</nav>
 
-  <!-- ── Header ─────────────────────────────── -->
-  <header>
-    <div class="header-inner">
-      <div class="logo">
-        <div class="live-dot" id="live-dot"></div>
-        <div class="logo-text"><span>0xee</span>Mini</div>
-        <span class="badge badge-version" id="version-badge">v0.1.0</span>
+<!-- ── HERO ── -->
+<section class="hero">
+  <div class="hero-glow"></div>
+
+  <div class="hero-main">
+    <div class="hero-eyebrow">autonomous financial agent · solana mainnet</div>
+
+    <h1><span class="g">0xee</span>Mini<span class="cursor-blink"></span><br>
+    <span style="font-size:.45em;color:var(--text-d);letter-spacing:.05em;font-weight:300">FAKE-DEV DETECTOR</span></h1>
+
+    <p class="hero-tag">Detects fake blockchain developers.<br>
+    Bullshit score 0–100. Pay once, get the truth.</p>
+
+    <p class="hero-sub">
+      <em>Proof-of-compute on Solana.</em> Machine-to-machine HTTP 402.<br>
+      No API key. No subscription. Just USDC.
+    </p>
+
+    <div class="ctas">
+      <a href="#services" class="btn btn-g">🔍 Audit a Repo — 0.50 USDC</a>
+      <a href="/catalog" class="btn btn-o" target="_blank">💡 Browse Insights — 0.10 USDC</a>
+    </div>
+
+    <div class="hero-strip">
+      <div class="hs-item">
+        <div class="hs-val" id="h-bal">—</div>
+        <div class="hs-lbl">USDC Balance</div>
       </div>
-      <div class="header-right">
-        <span class="badge badge-network">Solana Mainnet</span>
-        <span id="last-update">—</span>
+      <div class="hs-item">
+        <div class="hs-val b" id="h-cyc">—</div>
+        <div class="hs-lbl">Cycles Run</div>
       </div>
-    </div>
-  </header>
-
-  <!-- ── Stats ──────────────────────────────── -->
-  <div class="stats-grid" id="stats-grid">
-    <div class="stat-card green">
-      <div class="stat-label">Balance</div>
-      <div class="stat-value" id="stat-balance"><span class="cursor"></span></div>
-      <div class="stat-sub" id="stat-balance-sub">USDC · Solana</div>
-    </div>
-    <div class="stat-card gray">
-      <div class="stat-label">Reserve</div>
-      <div class="stat-value" id="stat-reserve">—</div>
-      <div class="stat-sub">minimum</div>
-    </div>
-    <div class="stat-card blue">
-      <div class="stat-label">Cycles</div>
-      <div class="stat-value" id="stat-cycles">—</div>
-      <div class="stat-sub" id="stat-uptime">—</div>
-    </div>
-    <div class="stat-card purple">
-      <div class="stat-label">Claude</div>
-      <div class="stat-value" id="stat-claude">—</div>
-      <div class="stat-sub">spent this month</div>
+      <div class="hs-item">
+        <div class="hs-val a" id="h-pft">—</div>
+        <div class="hs-lbl">Monthly Profit</div>
+      </div>
+      <div class="hs-item">
+        <div class="hs-val w" id="h-dec">—</div>
+        <div class="hs-lbl">Last Decision</div>
+      </div>
     </div>
   </div>
 
-  <!-- ── Brain + Transactions ───────────────── -->
-  <div class="main-grid">
+  <!-- Right panel -->
+  <div class="hero-ticker">
+    <div class="ticker-label">live · agent telemetry</div>
 
-    <!-- Brain -->
-    <div class="panel">
-      <div class="section-label">Brain status</div>
-
-      <div class="brain-row">
-        <span class="brain-key">Last decision</span>
-        <span class="chip chip-WAIT" id="chip-action">WAIT</span>
-      </div>
-      <div class="brain-row">
-        <span class="brain-key">Brain source</span>
-        <span class="chip chip-default" id="chip-brain">—</span>
-      </div>
-      <div class="brain-row">
-        <span class="brain-key">VPS paid</span>
-        <span class="chip chip-no" id="chip-vps">NO</span>
-      </div>
-      <div class="brain-row">
-        <span class="brain-key">Last cycle</span>
-        <span id="last-cycle-ts" style="font-size:10px;color:var(--text-dim)">—</span>
-      </div>
+    <div class="ticker-row">
+      <span class="ticker-key">version</span>
+      <span class="ticker-val g" id="t-ver">—</span>
+    </div>
+    <div class="ticker-row">
+      <span class="ticker-key">uptime</span>
+      <span class="ticker-val" id="t-upt">—</span>
+    </div>
+    <div class="ticker-row">
+      <span class="ticker-key">reserve min</span>
+      <span class="ticker-val" id="t-rsv">—</span>
+    </div>
+    <div class="ticker-row">
+      <span class="ticker-key">VPS paid</span>
+      <span class="ticker-val" id="t-vps">—</span>
+    </div>
+    <div class="ticker-row">
+      <span class="ticker-key">catalog items</span>
+      <span class="ticker-val b" id="t-cat">—</span>
+    </div>
+    <div class="ticker-row">
+      <span class="ticker-key">brain source</span>
+      <span class="ticker-val g" id="t-brn">—</span>
     </div>
 
-    <!-- Transactions -->
-    <div class="panel">
-      <div class="section-label">Transactions</div>
-      <table class="tx-table">
-        <thead>
-          <tr>
-            <th>Type</th>
-            <th>Status</th>
-            <th>Amount</th>
-            <th>Dest.</th>
-            <th>Tx</th>
-          </tr>
-        </thead>
-        <tbody id="tx-tbody">
-          <tr><td colspan="5" class="tx-empty">No transactions yet</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-  </div>
-
-  <!-- ── Wallets ─────────────────────────────── -->
-  <div class="wallet-full panel" style="margin-bottom:12px">
-    <div class="section-label">Wallets</div>
-    <div class="wallet-row">
-      <div class="wallet-role">Agent</div>
-      <div class="wallet-addr" id="wallet-agent">—</div>
-      <button class="copy-btn" onclick="copyAddr('wallet-agent',this)">Copy</button>
-    </div>
-    <div class="wallet-row">
-      <div class="wallet-role">Owner</div>
-      <div class="wallet-addr" id="wallet-owner">—</div>
-      <button class="copy-btn" onclick="copyAddr('wallet-owner',this)">Copy</button>
+    <div class="ticker-endpoint">
+      POST /audit<br>
+      → 402 {"wallet":"Hz1Dfq…"}<br>
+      → pay 0.50 USDC<br>
+      → 200 {"score":15,"proof":"…"}
     </div>
   </div>
+</section>
 
-  <!-- ── Footer ─────────────────────────────── -->
-  <footer>
-    <div class="footer-left">
-      <span>Open source</span>
-      <span class="footer-sep">·</span>
-      <span>Autonomous</span>
-      <span class="footer-sep">·</span>
-      <span>On-chain</span>
-    </div>
-    <div class="footer-right">
-      <a id="explorer-link" href="#" target="_blank" rel="noopener">
-        View on Solana Explorer ↗
-      </a>
-    </div>
-  </footer>
+<hr class="div">
 
-</div><!-- /container -->
+<!-- ── SERVICES ── -->
+<div class="section" id="services">
+  <div class="sec-label">services</div>
+  <h2>Three endpoints. Three ways to buy intelligence.</h2>
+  <p class="sec-sub">Structured JSON responses. No auth required. USDC on Solana mainnet.</p>
+
+  <div class="srv-grid">
+    <div class="srv">
+      <div class="srv-icon">🔍</div>
+      <div class="srv-name">GitHub Audit</div>
+      <div class="srv-desc">
+        Bullshit score 0–100. Detects wash development,
+        cosmetic-only commits, single-author repos, and
+        fake team activity designed to deceive investors.
+        SHA256 proof-of-compute on every result.
+      </div>
+      <div class="srv-price">0.50 USDC</div>
+      <a href="#protocol" class="srv-cta">POST /audit</a>
+    </div>
+
+    <div class="srv">
+      <div class="srv-icon">📦</div>
+      <div class="srv-name">Batch Audit</div>
+      <div class="srv-desc">
+        Up to 5 repos for 1.50 USDC. Full portfolio
+        risk assessment in a single transaction.
+        Ideal for investors reviewing multiple
+        projects before committing capital.
+      </div>
+      <div class="srv-price">1.50 USDC</div>
+      <a href="#protocol" class="srv-cta">POST /audit/batch</a>
+    </div>
+
+    <div class="srv">
+      <div class="srv-icon">💡</div>
+      <div class="srv-name">Crypto Insights</div>
+      <div class="srv-desc">
+        AI-curated tech/crypto intelligence. Hacker News
+        top signals + CoinGecko trending data, distilled
+        into structured actionable JSON.
+        Updated continuously.
+      </div>
+      <div class="srv-price">0.10 USDC</div>
+      <a href="/catalog" class="srv-cta" target="_blank">GET /catalog</a>
+    </div>
+  </div>
+</div>
+
+<hr class="div">
+
+<!-- ── PROTOCOL ── -->
+<div class="section" id="protocol">
+  <div class="sec-label">protocol</div>
+  <h2>HTTP 402 — Machine-to-Machine.</h2>
+  <p class="sec-sub">Any AI agent, script, or human can call this API. Standard HTTP, USDC payment, SHA256 proof.</p>
+
+  <div class="term">
+    <div class="term-bar">
+      <div class="td r"></div>
+      <div class="td y"></div>
+      <div class="td g"></div>
+      <div class="term-title">0xeeMini · HTTP 402 A2A Protocol · mini.0xee.li</div>
+    </div>
+    <div class="term-body">
+<div><span class="tc"># ── Step 1 · Request audit (no payment yet)</span></div>
+<div>&nbsp;</div>
+<div><span class="tm">POST</span> <span class="tp">https://mini.0xee.li/audit</span></div>
+<div>&nbsp;&nbsp;<span class="tk">"repo_url"</span>: <span class="tv">"bitcoin/bitcoin"</span></div>
+<div>&nbsp;</div>
+<div><span class="tar">←</span> <span class="t402">402 Payment Required</span></div>
+<div>&nbsp;&nbsp;<span class="tk">"price_usdc"</span>: <span class="tv">0.50</span>,</div>
+<div>&nbsp;&nbsp;<span class="tk">"wallet"</span>: <span class="tv">"Hz1Dfq6E1FArSET4iwRtDTpedsTkazrBaY77YXg3eXjo"</span>,</div>
+<div>&nbsp;&nbsp;<span class="tk">"protocol"</span>: <span class="tv">"solana-mainnet · USDC"</span></div>
+<div>&nbsp;</div>
+<div><span class="tc"># ── Step 2 · Send 0.50 USDC on Solana (Phantom / Backpack / CLI)</span></div>
+<div>&nbsp;</div>
+<div>→ Transfer <span class="tv">0.50 USDC</span> to <span class="tv">Hz1Dfq...eXjo</span> on Solana mainnet</div>
+<div>&nbsp;</div>
+<div><span class="tc"># ── Step 3 · Retry with Solana tx signature</span></div>
+<div>&nbsp;</div>
+<div><span class="tm">POST</span> <span class="tp">https://mini.0xee.li/audit</span></div>
+<div>&nbsp;&nbsp;<span class="tk">"repo_url"</span>&nbsp;&nbsp;&nbsp;&nbsp;: <span class="tv">"bitcoin/bitcoin"</span>,</div>
+<div>&nbsp;&nbsp;<span class="tk">"tx_signature"</span>: <span class="tv">"5abc...XYZConfirmedTxHash"</span></div>
+<div>&nbsp;</div>
+<div><span class="tar">←</span> <span class="t200">200 OK</span></div>
+<div>&nbsp;&nbsp;<span class="tk">"bullshit_score"</span>&nbsp;&nbsp;: <span class="tv">15</span>,</div>
+<div>&nbsp;&nbsp;<span class="tk">"recommendation"</span>&nbsp;&nbsp;: <span class="tv">"INVEST"</span>,</div>
+<div>&nbsp;&nbsp;<span class="tk">"verdict"</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: <span class="tv">"Code solide, commits sur logique core"</span>,</div>
+<div>&nbsp;&nbsp;<span class="tk">"red_flags"</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: <span class="tv">[]</span>,</div>
+<div>&nbsp;&nbsp;<span class="tk">"proof_hash"</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: <span class="tv">"a3f9c2b1d0e87f4..."</span>,</div>
+<div>&nbsp;&nbsp;<span class="tk">"proof_verify_url"</span>: <span class="tv">"https://mini.0xee.li/proof/a3f9c2b1"</span>,</div>
+<div>&nbsp;&nbsp;<span class="tk">"expires_at"</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: <span class="tv">"2026-02-24T14:07:00Z"</span></div>
+    </div>
+  </div>
+</div>
+
+<hr class="div">
+
+<!-- ── LIVE ── -->
+<div class="section" id="live">
+  <div class="sec-label">live</div>
+  <h2>Agent Status.</h2>
+  <p class="sec-sub">Auto-refreshes every 30s from the VPS directly.</p>
+
+  <div class="stats-grid">
+    <div class="stat">
+      <div class="stat-lbl">USDC Balance</div>
+      <div class="stat-val" id="s-bal">…</div>
+    </div>
+    <div class="stat">
+      <div class="stat-lbl">Cycles Run</div>
+      <div class="stat-val b" id="s-cyc">…</div>
+    </div>
+    <div class="stat">
+      <div class="stat-lbl">Monthly Profit</div>
+      <div class="stat-val a" id="s-pft">…</div>
+    </div>
+    <div class="stat">
+      <div class="stat-lbl">Last Decision</div>
+      <div class="stat-val w" id="s-dec">…</div>
+    </div>
+  </div>
+
+  <div class="stats-meta">
+    Last updated: <span id="s-ts">—</span>
+  </div>
+</div>
+
+<hr class="div">
+
+<!-- ── FOOTER ── -->
+<footer>
+  <div class="footer-links">
+    <a href="/catalog" target="_blank">/catalog</a>
+    <a href="/reputation" target="_blank">/reputation</a>
+    <a href="/.well-known/agent.json" target="_blank">agent.json</a>
+    <a href="/.well-known/ai-plugin.json" target="_blank">ai-plugin.json</a>
+    <a href="/openapi.json" target="_blank">OpenAPI</a>
+    <a href="https://t.me/0xeeMiniBot" target="_blank">@0xeeMiniBot</a>
+  </div>
+  <div class="footer-tag">Open source · Autonomous · On-chain</div>
+  <div class="footer-copy">0xeeMini v0.3.0 · Solana Mainnet · HTTP 402 · CC0 · mini.0xee.li</div>
+</footer>
 
 <script>
-  const REFRESH = 30; // seconds
-  let countdown = REFRESH;
-  let data = null;
+const INTERVAL = 30000;
+let timer = null;
 
-  function fmt(n, dec=2) {
-    return Number(n).toFixed(dec);
+function $$(sel) { return document.querySelectorAll(sel); }
+function $(sel)  { return document.querySelector(sel); }
+
+function fmt(v, prefix='$') {
+  if (v == null) return '—';
+  return prefix + Number(v).toFixed(2);
+}
+
+function fmtUptime(s) {
+  if (!s) return '—';
+  const h = Math.floor(s/3600), m = Math.floor((s%3600)/60);
+  return `${h}h ${m}m`;
+}
+
+function decBadge(action) {
+  if (!action) return '<span class="dbadge dw">—</span>';
+  const cls = {
+    WAIT:'dw', EXECUTE_TRANSFER:'de', ABORT:'da',
+    RUN_HUSTLE:'dh', REQUEST_UPGRADE:'dh'
+  }[action] || 'dw';
+  const short = {
+    WAIT:'WAIT', EXECUTE_TRANSFER:'TRANSFER', ABORT:'ABORT',
+    RUN_HUSTLE:'HUSTLE', REQUEST_UPGRADE:'UPGRADE'
+  }[action] || action;
+  return `<span class="dbadge ${cls}">${short}</span>`;
+}
+
+function setUpdating(on) {
+  $$('.stat-val,.hs-val,.ticker-val').forEach(e => {
+    on ? e.classList.add('updating') : e.classList.remove('updating');
+  });
+}
+
+function applyData(d) {
+  const fin = d.finance || {};
+  const agt = d.agent   || {};
+  const lst = d.last_decision || {};
+  const cat = d.catalog || {};
+
+  // Hero
+  $('#h-bal').textContent = fmt(fin.balance_usdc);
+  $('#h-cyc').textContent = agt.cycle_count ?? '—';
+  $('#h-pft').textContent = fmt(fin.monthly_profit);
+  $('#h-dec').innerHTML   = decBadge(lst.action);
+
+  // Ticker
+  $('#t-ver').textContent = agt.version ?? '—';
+  $('#t-upt').textContent = fmtUptime(agt.uptime_seconds);
+  $('#t-rsv').textContent = fmt(fin.reserve_minimum);
+  $('#t-vps').textContent = fin.vps_paid_this_month ? '✓ yes' : '✗ no';
+  $('#t-vps').style.color = fin.vps_paid_this_month ? 'var(--green)' : 'var(--amber)';
+  $('#t-cat').textContent = cat.count ?? '—';
+  $('#t-brn').textContent = lst.brain_source || '—';
+
+  // Live stats
+  $('#s-bal').textContent = fmt(fin.balance_usdc);
+  $('#s-cyc').textContent = agt.cycle_count ?? '—';
+  $('#s-pft').textContent = fmt(fin.monthly_profit);
+  $('#s-dec').innerHTML   = decBadge(lst.action);
+
+  // Timestamp
+  $('#s-ts').textContent = new Date().toLocaleTimeString([], {
+    hour:'2-digit', minute:'2-digit', second:'2-digit'
+  });
+}
+
+async function refresh() {
+  setUpdating(true);
+  try {
+    const res  = await fetch('/api/status');
+    if (!res.ok) throw new Error(res.status);
+    const data = await res.json();
+    setTimeout(() => { applyData(data); setUpdating(false); }, 280);
+    $('#nav-status').textContent = 'ONLINE';
+    $('#nav-status').style.color = 'var(--green)';
+  } catch {
+    setUpdating(false);
+    $('#nav-status').textContent = 'OFFLINE';
+    $('#nav-status').style.color = 'var(--red)';
   }
+}
 
-  function fmtUptime(s) {
-    if (s < 60)   return s + 's';
-    if (s < 3600) return Math.floor(s/60) + 'm ' + (s%60) + 's';
-    const h = Math.floor(s/3600), m = Math.floor((s%3600)/60);
-    return h + 'h ' + m + 'm';
-  }
+// Countdown progress bar
+function startBar() {
+  const bar = $('#rbar');
+  bar.style.transition = 'none';
+  bar.style.transform  = 'scaleX(1)';
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    bar.style.transition = `transform ${INTERVAL/1000}s linear`;
+    bar.style.transform  = 'scaleX(0)';
+  }));
+}
 
-  function fmtTs(ts) {
-    if (!ts) return '—';
-    try {
-      const d = new Date(ts);
-      const now = new Date();
-      const diff = Math.floor((now - d) / 1000);
-      if (diff < 60)   return diff + 's ago';
-      if (diff < 3600) return Math.floor(diff/60) + 'm ago';
-      if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
-      return d.toLocaleDateString();
-    } catch { return ts; }
-  }
-
-  function setChip(el, cls, text) {
-    el.className = 'chip chip-' + cls;
-    el.textContent = text || cls;
-  }
-
-  function animateValue(el, end, dec=2, suffix='') {
-    const start = parseFloat(el.dataset.val || '0');
-    const dur = 600;
-    const t0 = performance.now();
-    function step(t) {
-      const p = Math.min((t - t0) / dur, 1);
-      const ease = 1 - Math.pow(1 - p, 3);
-      el.textContent = fmt(start + (end - start) * ease, dec) + suffix;
-      if (p < 1) requestAnimationFrame(step);
-      else el.dataset.val = end;
-    }
-    requestAnimationFrame(step);
-  }
-
-  async function fetchStatus() {
-    try {
-      const r = await fetch('/api/status');
-      if (!r.ok) throw new Error(r.status);
-      return await r.json();
-    } catch(e) {
-      console.warn('fetch /api/status failed:', e);
-      return null;
-    }
-  }
-
-  function render(d) {
-    if (!d) return;
-
-    // Header
-    document.getElementById('version-badge').textContent = 'v' + (d.agent?.version || '?');
-    document.getElementById('last-update').textContent = 'Updated ' + fmtTs(new Date().toISOString());
-
-    // Stats
-    const bal = parseFloat(d.finance?.balance_usdc || 0);
-    const res = parseFloat(d.finance?.reserve_minimum || 15);
-    const surplus = Math.max(0, bal - res);
-    animateValue(document.getElementById('stat-balance'), bal, 2);
-    document.getElementById('stat-balance-sub').textContent =
-      surplus > 0 ? '+' + fmt(surplus) + ' above reserve' : 'at reserve';
-
-    animateValue(document.getElementById('stat-reserve'), res, 2);
-
-    animateValue(document.getElementById('stat-cycles'), d.agent?.cycle_count || 0, 0);
-    document.getElementById('stat-uptime').textContent = 'uptime ' + fmtUptime(d.agent?.uptime_seconds || 0);
-
-    const spent = parseFloat(d.finance?.claude_spent_usd || 0);
-    document.getElementById('stat-claude').textContent = '$' + spent.toFixed(4);
-
-    // Brain chips
-    const action = d.last_decision?.action || 'WAIT';
-    const brainSrc = d.last_decision?.brain_source || '—';
-    setChip(document.getElementById('chip-action'), action, action.replace('_', ' '));
-    setChip(document.getElementById('chip-brain'), brainSrc, brainSrc.replace('_', ' '));
-
-    const vpsPaid = d.finance?.vps_paid_this_month;
-    setChip(document.getElementById('chip-vps'), vpsPaid ? 'yes' : 'no', vpsPaid ? 'YES' : 'NO');
-
-    document.getElementById('last-cycle-ts').textContent = fmtTs(d.last_decision?.ts);
-
-    // Transactions
-    const tbody = document.getElementById('tx-tbody');
-    const txs = d.transactions || [];
-    if (txs.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" class="tx-empty">No transactions yet</td></tr>';
-    } else {
-      tbody.innerHTML = txs.map(tx => {
-        const explorerUrl = tx.hash
-          ? `https://explorer.solana.com/tx/${tx.hash}`
-          : null;
-        const hashEl = explorerUrl
-          ? `<a class="tx-hash" href="${explorerUrl}" target="_blank" rel="noopener">↗ ${tx.hash.slice(0,8)}…</a>`
-          : '<span style="color:var(--text-dim)">—</span>';
-        return `<tr>
-          <td style="color:var(--text)">${tx.type || '—'}</td>
-          <td><span class="status-chip status-${tx.status || 'PENDING'}">${tx.status || '?'}</span></td>
-          <td style="color:var(--green)">${fmt(tx.amount_usdc || 0)}</td>
-          <td style="color:var(--text-dim);font-size:10px">${tx.to || '—'}</td>
-          <td>${hashEl}</td>
-        </tr>`;
-      }).join('');
-    }
-
-    // Wallets
-    document.getElementById('wallet-agent').textContent = d.wallet?.agent || '—';
-    document.getElementById('wallet-owner').textContent = d.wallet?.owner || '—';
-
-    // Explorer link
-    if (d.wallet?.agent) {
-      document.getElementById('explorer-link').href =
-        `https://explorer.solana.com/address/${d.wallet.agent}`;
-    }
-
-    // Fade animation
-    document.getElementById('stats-grid').classList.remove('fade-in');
-    void document.getElementById('stats-grid').offsetWidth;
-    document.getElementById('stats-grid').classList.add('fade-in');
-  }
-
-  async function refresh() {
-    const d = await fetchStatus();
-    if (d) render(d);
-    countdown = REFRESH;
-  }
-
-  // Copy button
-  function copyAddr(id, btn) {
-    const text = document.getElementById(id).textContent;
-    navigator.clipboard.writeText(text).then(() => {
-      btn.textContent = 'Copied!';
-      btn.classList.add('copied');
-      setTimeout(() => {
-        btn.textContent = 'Copy';
-        btn.classList.remove('copied');
-      }, 2000);
-    });
-  }
-
-  // Countdown bar
-  function tickCountdown() {
-    countdown = Math.max(0, countdown - 1);
-    const pct = (countdown / REFRESH) * 100;
-    document.getElementById('countdown-bar').style.width = pct + '%';
-    if (countdown === 0) refresh();
-  }
-
-  // Init
+function tick() {
   refresh();
-  setInterval(tickCountdown, 1000);
+  startBar();
+}
+
+// Boot
+document.addEventListener('DOMContentLoaded', () => {
+  tick();
+  clearInterval(timer);
+  timer = setInterval(tick, INTERVAL);
+});
 </script>
 </body>
 </html>

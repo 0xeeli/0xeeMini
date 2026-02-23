@@ -377,6 +377,25 @@ def cmd_download_audit_model() -> None:
         print("\n❌ Téléchargement échoué — voir erreurs ci-dessus.")
 
 
+def cmd_register_agent() -> None:
+    """Enregistre 0xeeMini sur le registre EIP-8004 (EmberAI/Arbitrum)."""
+    print("📡 Enregistrement de 0xeeMini — EIP-8004 / EmberAI / Arbitrum")
+    print("   Prérequis : Node.js installé localement, wallet Arbitrum avec gas\n")
+    print("   Ça va coûter quelques centimes de gas ARB pour l'on-chain TX.\n")
+    _run([
+        "npx", "-y", "@emberai/agent-node@latest", "register",
+        "--name",        "0xeeMini",
+        "--description", (
+            "Autonomous AI agent detecting fake blockchain developers via GitHub commit analysis. "
+            "Bullshit score 0-100. 0.50 USDC per audit via Solana HTTP402. "
+            "26 tests. Open source."
+        ),
+        "--url",         f"https://mini.0xee.li",
+        "--version",     "0.3.0",
+        "--image",       "https://mini.0xee.li/favicon.ico",
+    ], check=False)
+
+
 def cmd_setup_vps() -> None:
     """Configure ~/.config/0xeeMini/ sur le VPS pour la première fois."""
     if not _check_vps_configured():
@@ -421,7 +440,8 @@ COMMANDS = {
     "wallet":          (cmd_wallet,         "Affiche le statut du wallet USDC"),
     "stop":            (cmd_stop,           "Arrête le service"),
     "start":           (cmd_start,          "Démarre le service"),
-    "setup-vps":       (cmd_setup_vps,      "Configure les secrets sur le VPS"),
+    "setup-vps":          (cmd_setup_vps,          "Configure les secrets sur le VPS"),
+    "register-agent":     (cmd_register_agent,     "Enregistre sur le registre EIP-8004 (EmberAI)"),
     "install-brain":        (cmd_install_brain,        "Installe llama-cpp-python sur le VPS"),
     "download-model":       (cmd_download_model,       "Télécharge le cerveau réflexe 0.5B (~400 Mo)"),
     "download-audit-model": (cmd_download_audit_model, "Télécharge le Mode Samouraï 1.5B (~900 Mo)"),
