@@ -130,6 +130,14 @@ async def _route_decision(decision: dict, profit_engine: ProfitEngine, hustle_en
         if not details.get("to_wallet") or not details.get("amount_usdc"):
             logger.warning("EXECUTE_TRANSFER sans détails valides → WAIT")
             return
+        # Injecter un idempotency_key basé sur la journée si le cerveau n'en fournit pas.
+        # Empêche les re-déclenchements multiples du même transfert dans la même journée.
+        if not details.get("idempotency_key"):
+            day_key = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            wallet_short = (details.get("to_wallet") or "")[:8]
+            amount_str = str(details.get("amount_usdc", "")).replace(".", "_")
+            details["idempotency_key"] = f"brain_{wallet_short}_{amount_str}_{day_key}"
+            logger.debug(f"EXECUTE_TRANSFER — idempotency auto : {details['idempotency_key']}")
         # Marquer VPS comme payé AVANT l'exécution (idempotent, persiste même en cas de crash)
         tx_type = (details.get("tx_type") or "").lower()
         if "vps" in tx_type:
