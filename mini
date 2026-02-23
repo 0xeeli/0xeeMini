@@ -108,6 +108,13 @@ def cmd_deploy() -> None:
         f"loginctl enable-linger debian"
     )
 
+    # Synchroniser le frontend vers le vhost lighttpd
+    _print_section("sync www → lighttpd vhost")
+    _ssh(
+        f"cp {VPS_PATH}/www/index.html {VPS_WEB_PATH}/index.html && "
+        f"echo 'www synced'"
+    )
+
     # Redémarrer le service
     _print_section("restart service")
     _ssh(f"systemctl --user restart {SERVICE_NAME}.service")
