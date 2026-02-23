@@ -19,8 +19,8 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=/home/debian/0xeemini
-ExecStart=/home/debian/.local/bin/python3 /home/debian/0xeemini/0xeemini/main.py
+WorkingDirectory=/home/debian/0xeeMini
+ExecStart=/home/debian/0xeeMini/.venv/bin/python /home/debian/0xeeMini/run.py
 Restart=on-failure
 RestartSec=10s
 PrivateTmp=true

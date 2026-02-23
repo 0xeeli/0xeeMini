@@ -153,13 +153,8 @@ class ProfitEngine:
         })
         logger.info(f"ProfitEngine — TX {tx_id} initiée ({tx_type}, {amount:.2f} USDC → {to_wallet[:8]}...)")
 
-        try:
-            signed_payload = await self._sign_transaction(tx_id, amount, to_wallet, memo)
-        except Exception as exc:
-            self._mark_failed(tx_id, str(exc))
-            raise
-
-        # Kill window si armée
+        # Kill window AVANT la signature — le blockhash Solana expire en ~60s
+        # Si on signe avant d'attendre, le blockhash sera périmé au broadcast
         if ProfitEngine._kill_armed:
             logger.warning("ProfitEngine — kill window 60s armée. SIGTERM pour annuler.")
             ProfitEngine._kill_event.clear()
@@ -169,9 +164,16 @@ class ProfitEngine:
                 logger.warning(f"ProfitEngine — TX {tx_id} annulée par kill switch")
                 return tx_id
             except asyncio.TimeoutError:
-                logger.info("ProfitEngine — kill window expirée, broadcast en cours")
+                logger.info("ProfitEngine — kill window expirée, signature avec blockhash frais")
             finally:
                 ProfitEngine._kill_armed = False
+
+        # Signer avec un blockhash frais (après la kill window si applicable)
+        try:
+            signed_payload = await self._sign_transaction(tx_id, amount, to_wallet, memo)
+        except Exception as exc:
+            self._mark_failed(tx_id, str(exc))
+            raise
 
         # Broadcast
         tx_hash = await self._broadcast_transaction(tx_id, signed_payload)
@@ -189,42 +191,134 @@ class ProfitEngine:
     async def _sign_transaction(self, tx_id: str, amount: float,
                                  to_wallet: str, memo: str) -> bytes:
         """
-        Construit et signe une transaction Solana USDC.
-        Utilise solana-py + spl-token.
+        Construit et signe une vraie transaction SPL Token (USDC) sur Solana.
+        Utilise solders 0.21 pour keypair/message/tx, httpx pour le RPC.
         """
-        try:
-            from solders.keypair import Keypair  # type: ignore
-            from solders.pubkey import Pubkey  # type: ignore
-            from solana.rpc.async_api import AsyncClient  # type: ignore
-            from spl.token.async_client import AsyncToken  # type: ignore
-            from spl.token.constants import TOKEN_PROGRAM_ID  # type: ignore
+        import base58
+        import struct
+        from solders.keypair import Keypair  # type: ignore
+        from solders.pubkey import Pubkey  # type: ignore
+        from solders.hash import Hash  # type: ignore
+        from solders.instruction import Instruction, AccountMeta  # type: ignore
+        from solders.message import Message  # type: ignore
+        from solders.transaction import Transaction  # type: ignore
 
-            import base58
+        # ── Keypair ───────────────────────────────────
+        private_key_bytes = base58.b58decode(self.cfg["wallet_private"])
+        keypair = Keypair.from_bytes(private_key_bytes)
+        sender_pubkey = keypair.pubkey()
+        usdc_mint = Pubkey.from_string(USDC_MINT)
+        token_program = Pubkey.from_string(
+            "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        )
 
-            private_key_bytes = base58.b58decode(self.cfg["wallet_private"])
-            keypair = Keypair.from_bytes(private_key_bytes)
+        async def _get_token_accounts(client, wallet: str, rpc_id: int) -> list:
+            """Récupère les ATAs USDC avec backoff exponentiel sur rate-limit 429."""
+            last_error = None
+            for attempt in range(5):
+                if attempt:
+                    await asyncio.sleep(3.0 * (2 ** (attempt - 1)))  # 3s, 6s, 12s, 24s
+                r = await client.post(self.cfg["solana_rpc"], json={
+                    "jsonrpc": "2.0", "id": rpc_id,
+                    "method": "getTokenAccountsByOwner",
+                    "params": [wallet, {"mint": str(usdc_mint)}, {"encoding": "jsonParsed"}],
+                })
+                data = r.json()
+                if data.get("error"):
+                    logger.warning(f"RPC error (attempt {attempt+1}): {data['error']}")
+                    last_error = data["error"]
+                    continue
+                # Réponse HTTP 200 — retourner même si vide ([] = vrai ATA absent)
+                return data.get("result", {}).get("value", [])
+            # Toutes les tentatives échouées par rate-limit, pas par absence d'ATA
+            raise ValueError(f"RPC rate-limited après 5 tentatives : {last_error}")
 
-            # Placeholder : dans la vraie implémentation, construire la TX SPL
-            # via create_transfer_checked instruction
-            signed_payload = b"SIGNED_PLACEHOLDER_" + tx_id.encode()
-            logger.debug(f"ProfitEngine — TX {tx_id} signée (mock solders)")
+        def _ata_cache_key(wallet: str) -> str:
+            return f"ata_cache_{wallet[:8]}"
 
-        except ImportError:
-            # solana-py pas encore installé — mode simulation
-            logger.warning("ProfitEngine — solana-py absent, mode simulation")
-            signed_payload = b"SIMULATED_SIGN_" + tx_id.encode()
-        except Exception as exc:
-            logger.error(f"ProfitEngine — signature error : {exc}")
-            raise
+        def _get_cached_ata(wallet: str) -> str | None:
+            return get_state(_ata_cache_key(wallet), "")
+
+        def _cache_ata(wallet: str, ata: str) -> None:
+            set_state(_ata_cache_key(wallet), ata)
+
+        async with httpx.AsyncClient(timeout=30) as client:
+            # ── Compte USDC de l'envoyeur ─────────────
+            sender_key = str(sender_pubkey)
+            sender_ata_str = _get_cached_ata(sender_key)
+            if not sender_ata_str:
+                sender_accounts = await _get_token_accounts(client, sender_key, 1)
+                if not sender_accounts:
+                    raise ValueError("Sender has no USDC token account")
+                sender_ata_str = sender_accounts[0]["pubkey"]
+                _cache_ata(sender_key, sender_ata_str)
+                logger.debug(f"ATA sender mis en cache : {sender_ata_str[:8]}...")
+                await asyncio.sleep(2.0)
+            else:
+                logger.debug(f"ATA sender depuis cache : {sender_ata_str[:8]}...")
+            sender_ata = Pubkey.from_string(sender_ata_str)
+
+            # ── Compte USDC du destinataire ───────────
+            receiver_ata_str = _get_cached_ata(to_wallet)
+            if not receiver_ata_str:
+                receiver_accounts = await _get_token_accounts(client, to_wallet, 2)
+                if not receiver_accounts:
+                    raise ValueError(
+                        f"Receiver {to_wallet[:8]}... has no USDC token account"
+                    )
+                receiver_ata_str = receiver_accounts[0]["pubkey"]
+                _cache_ata(to_wallet, receiver_ata_str)
+                logger.debug(f"ATA receiver mis en cache : {receiver_ata_str[:8]}...")
+                await asyncio.sleep(2.0)
+            else:
+                logger.debug(f"ATA receiver depuis cache : {receiver_ata_str[:8]}...")
+            receiver_ata = Pubkey.from_string(receiver_ata_str)
+
+            # ── Blockhash récent ──────────────────────
+            r = await client.post(self.cfg["solana_rpc"], json={
+                "jsonrpc": "2.0", "id": 3,
+                "method": "getLatestBlockhash",
+                "params": [{"commitment": "finalized"}],
+            })
+            blockhash_str = r.json()["result"]["value"]["blockhash"]
+            recent_blockhash = Hash.from_string(blockhash_str)
+
+        # ── Instruction transfer_checked ──────────────
+        # SPL Token discriminator 12 : [12] + u64 amount (LE) + [decimals]
+        amount_micro = int(amount * 1_000_000)  # USDC = 6 décimales
+        ix_data = bytes([12]) + struct.pack("<Q", amount_micro) + bytes([6])
+
+        transfer_ix = Instruction(
+            program_id=token_program,
+            accounts=[
+                AccountMeta(pubkey=sender_ata,   is_signer=False, is_writable=True),
+                AccountMeta(pubkey=usdc_mint,     is_signer=False, is_writable=False),
+                AccountMeta(pubkey=receiver_ata,  is_signer=False, is_writable=True),
+                AccountMeta(pubkey=sender_pubkey, is_signer=True,  is_writable=False),
+            ],
+            data=bytes(ix_data),
+        )
+
+        # ── Transaction signée ────────────────────────
+        msg = Message.new_with_blockhash(
+            [transfer_ix], sender_pubkey, recent_blockhash,
+        )
+        tx = Transaction([keypair], msg, recent_blockhash)
+        signed_bytes = bytes(tx)
+
+        logger.info(
+            f"ProfitEngine — TX {tx_id} signée : "
+            f"{amount:.2f} USDC → {to_wallet[:8]}..."
+        )
 
         now = datetime.now(timezone.utc).isoformat()
         with get_db() as conn:
             conn.execute(
                 "UPDATE transactions SET status='SIGNED', signed_payload=? WHERE tx_id=?",
-                (signed_payload, tx_id),
+                (signed_bytes, tx_id),
             )
 
-        return signed_payload
+        return signed_bytes
 
     async def _broadcast_transaction(self, tx_id: str, signed_payload: bytes) -> str | None:
         """Broadcast la transaction signée sur Solana."""
@@ -306,7 +400,13 @@ class ProfitEngine:
             except Exception as exc:
                 logger.debug(f"ProfitEngine — poll attempt {attempt+1} error : {exc}")
 
-        self._mark_failed(tx_id, "confirmation_timeout_120s")
+        # Timeout sans confirmation — garder SUBMITTED (pas FAILED)
+        # Le TX est peut-être confirmé mais le RPC rate-limité
+        # BootGuardian vérifiera au prochain redémarrage
+        logger.warning(
+            f"ProfitEngine — TX {tx_id} non confirmée après {max_attempts} tentatives "
+            f"(laissée SUBMITTED pour recovery BootGuardian)"
+        )
         return False
 
     def _mark_failed(self, tx_id: str, error: str) -> None:

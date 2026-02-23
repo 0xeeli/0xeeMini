@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────
-# 0xeeMini v0.1.0 — BrainLink
+# 0xeeMini v0.2.0 — BrainLink
 # https://mini.0xee.li
 #
 # Stratégie cerveau :
@@ -7,12 +7,14 @@
 #              → fast-path WAIT si throttle Claude pas expiré
 #   Étape 2 — Claude Haiku  (throttlé 10min, ou si réflexe ≠ WAIT)
 #              → cerveau principal, JSON fiable
-#   Étape 3 — Ollama local  (optionnel, si configuré)
 #   Fallback  — WAIT
+#
+# GitHub Audit :
+#   Primaire  — Claude Haiku
+#   Samouraï  — qwen2.5-coder-1.5b GGUF (n_ctx=1024, éphémère)
 # ─────────────────────────────────────────────────────
 
 import json
-import subprocess
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -29,11 +31,8 @@ class BrainLink:
     Orchestre les cerveaux de 0xeeMini.
     Claude Haiku = cerveau principal (throttlé).
     GGUF réflexe = gardien bare-metal (toutes les 60s).
-    Ollama = optionnel.
+    Mode Samouraï = fallback audit GGUF 1.5B (éphémère, libéré immédiatement).
     """
-
-    _LOCAL_ALIVE_CACHE: tuple[bool, float] | None = None
-    _CACHE_TTL = 30.0  # secondes
 
     def __init__(self, cfg: dict) -> None:
         self.cfg = cfg
@@ -58,12 +57,10 @@ class BrainLink:
           Étape 1 — Réflexe GGUF (toujours, gratuit, ~0.3s)
                      Fast-path : si action=WAIT et throttle Claude pas expiré → retour direct.
           Étape 2 — Claude Haiku (si throttle expiré ou réflexe ≠ WAIT)
-          Étape 3 — Ollama local (si configuré, fallback secondaire)
           Fallback  — réflexe ou WAIT
         """
         # ── Étape 1 : Réflexe GGUF ─────────────────────
         reflex = self._think_reflex(runtime_state)
-        reflex_action = "WAIT"
 
         # Fast-path réflexe si throttle Claude pas expiré
         # (quel que soit l'action du réflexe — Claude décide 1x/10min max)
@@ -81,17 +78,9 @@ class BrainLink:
             if result["response"] is not None:
                 return self._parse_json_response(result)
 
-        # ── Étape 3 : Ollama local (optionnel) ─────────
-        if self.is_local_alive():
-            prompt = build_prompt(runtime_state)
-            messages = [{"role": "user", "content": prompt}]
-            result = self._think_local(messages, "constitution")
-            if result["response"] is not None:
-                return self._parse_json_response(result)
-
         # ── Fallback ────────────────────────────────────
         if reflex is not None:
-            logger.warning("BrainLink — Claude/Ollama indisponibles, réflexe utilisé")
+            logger.warning("BrainLink — Claude indisponible, réflexe utilisé")
             return reflex
 
         logger.warning("BrainLink — tous les cerveaux indisponibles → WAIT")
@@ -271,119 +260,118 @@ class BrainLink:
             "_cost_usd": 0.0,
         }
 
-    # ── Ollama local (optionnel) ───────────────────────
-
-    def is_local_alive(self) -> bool:
-        """Cache 30s — vérifie Ollama via tunnel ou SSH."""
-        now = time.time()
-        if (
-            BrainLink._LOCAL_ALIVE_CACHE is not None
-            and (now - BrainLink._LOCAL_ALIVE_CACHE[1]) < self._CACHE_TTL
-        ):
-            return BrainLink._LOCAL_ALIVE_CACHE[0]
-
-        result = self._check_local()
-        BrainLink._LOCAL_ALIVE_CACHE = (result, now)
-        return result
-
-    def _check_local(self) -> bool:
-        tunnel_port = self.cfg.get("ollama_tunnel_port", 0)
-        if tunnel_port:
-            try:
-                import urllib.request
-                urllib.request.urlopen(
-                    f"http://127.0.0.1:{tunnel_port}/api/tags", timeout=3
-                )
-                logger.debug(f"BrainLink — tunnel Ollama actif sur :{tunnel_port}")
-                return True
-            except Exception:
-                return False
-
-        host = self.cfg.get("local_ssh_host", "")
-        if not host:
-            return False
-
-        user = self.cfg.get("local_ssh_user", "pankso")
-        port = self.cfg.get("local_ssh_port", 22)
-        ollama_port = self.cfg.get("ollama_port", 11434)
-
-        try:
-            result = subprocess.run(
-                [
-                    "ssh",
-                    "-o", "StrictHostKeyChecking=no",
-                    "-o", "ConnectTimeout=3",
-                    "-p", str(port),
-                    f"{user}@{host}",
-                    f"curl -s --max-time 3 http://localhost:{ollama_port}/api/tags",
-                ],
-                capture_output=True,
-                timeout=5,
-                text=True,
-            )
-            if result.returncode == 0 and "models" in result.stdout:
-                return True
-        except Exception:
-            pass
-        return False
-
-    def _think_local(self, messages: list[dict], task_type: str) -> dict:
-        model = self.cfg["brain_model"]
-        payload = json.dumps({"model": model, "messages": messages, "stream": False})
-
-        tunnel_port = self.cfg.get("ollama_tunnel_port", 0)
-        if tunnel_port:
-            try:
-                with httpx.Client(timeout=120) as client:
-                    resp = client.post(
-                        f"http://127.0.0.1:{tunnel_port}/api/chat",
-                        content=payload,
-                        headers={"Content-Type": "application/json"},
-                    )
-                data = resp.json()
-                content = data.get("message", {}).get("content", "")
-                return {"response": content or None, "source": "local_ollama_tunnel", "cost_usd": 0.0}
-            except Exception as exc:
-                logger.warning(f"BrainLink tunnel — erreur : {exc}")
-                return {"response": None, "source": "tunnel_error", "cost_usd": 0.0}
-
-        host = self.cfg["local_ssh_host"]
-        user = self.cfg["local_ssh_user"]
-        port = self.cfg["local_ssh_port"]
-        ollama_port = self.cfg["ollama_port"]
-
-        try:
-            result = subprocess.run(
-                [
-                    "ssh",
-                    "-o", "StrictHostKeyChecking=no",
-                    "-o", "ConnectTimeout=5",
-                    "-p", str(port),
-                    f"{user}@{host}",
-                    f"curl -s -X POST http://localhost:{ollama_port}/api/chat "
-                    f"-H 'Content-Type: application/json' "
-                    f"-d '{payload.replace(chr(39), chr(39)+chr(92)+chr(39)+chr(39))}'",
-                ],
-                capture_output=True,
-                timeout=120,
-                text=True,
-            )
-            if result.returncode != 0:
-                return {"response": None, "source": "local_ssh_error", "cost_usd": 0.0}
-            data = json.loads(result.stdout)
-            content = data.get("message", {}).get("content", "")
-            return {"response": content or None, "source": "local_ollama", "cost_usd": 0.0}
-        except Exception as exc:
-            logger.error(f"BrainLink local — erreur : {exc}")
-            return {"response": None, "source": "local_error", "cost_usd": 0.0}
-
     # ── GitHub Audit LLM ───────────────────────────────
+
+    # Extensions purement UI/cosmétiques — filtrées du diff avant passage au Samouraï
+    _COSMETIC_SKIP_EXTS = {
+        ".css", ".scss", ".less", ".sass",
+        ".svg", ".png", ".jpg", ".jpeg", ".gif", ".ico", ".webp", ".bmp",
+        ".woff", ".woff2", ".ttf", ".eot", ".otf",
+        ".map",
+    }
+
+    def _preprocess_audit_payload(self, commits_sample: list[dict]) -> str:
+        """
+        Pré-traite l'échantillon de commits pour le Mode Samouraï.
+        - Filtre les fichiers purement UI/CSS/images (garde uniquement la logique backend)
+        - Nettoie les espaces excessifs dans patches et messages
+        - Tronque à 3200 chars (~800 tokens) pour tenir dans n_ctx=1024
+        """
+        filtered = []
+        for c in commits_sample[:10]:
+            backend_files = [
+                f for f in c.get("files", [])
+                if Path(f["filename"]).suffix.lower() not in self._COSMETIC_SKIP_EXTS
+            ]
+            # Conserver le commit même s'il n'a que des fichiers cosmétiques
+            # (l'info "que des cosmétiques" est importante pour le score)
+            files_to_use = backend_files if backend_files else c.get("files", [])[:2]
+
+            entry = {
+                "sha": c["sha"][:8],
+                "author": c["author"],
+                "date": c["date"][:10],  # date seule, pas heure
+                "msg": " ".join(c["message"].split())[:80],  # clean whitespace
+                "stats": c["stats"],
+                "files": [
+                    {
+                        "f": f["filename"],
+                        "s": f["status"],
+                        "+": f["additions"],
+                        "-": f["deletions"],
+                        "p": " ".join((f.get("patch") or "").split())[:120],
+                    }
+                    for f in files_to_use[:3]
+                ],
+            }
+            filtered.append(entry)
+
+        raw = json.dumps(filtered, separators=(",", ":"))
+        # Tronque à 3200 chars ≈ 800 tokens
+        return raw[:3200]
+
+    def _analyze_samurai_sync(self, user_prompt: str, system_prompt: str) -> dict:
+        """
+        Mode Samouraï — inférence synchrone avec qwen2.5-coder-1.5b.
+        n_ctx=1024, éphémère : del llm + gc.collect() après usage.
+        """
+        import gc
+
+        model_path = self.cfg.get("brain_audit_model_path", "")
+        if not model_path or not Path(model_path).exists():
+            logger.debug("Mode Samouraï — modèle absent, skip")
+            return {"response": None, "source": "samurai_model_absent", "cost_usd": 0.0}
+
+        try:
+            from llama_cpp import Llama
+        except ImportError:
+            logger.debug("Mode Samouraï — llama-cpp-python non installé, skip")
+            return {"response": None, "source": "samurai_no_llama_cpp", "cost_usd": 0.0}
+
+        llm = None
+        try:
+            logger.info("⚔️  Mode Samouraï — chargement qwen2.5-coder-1.5b...")
+            llm = Llama(
+                model_path=model_path,
+                n_ctx=1024,
+                n_threads=2,
+                verbose=False,
+            )
+
+            resp = llm.create_chat_completion(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.1,
+                max_tokens=400,
+            )
+            raw = resp["choices"][0]["message"]["content"].strip()
+
+            del llm
+            gc.collect()
+            logger.info("⚔️  Mode Samouraï — déchargé, réponse reçue")
+
+            return {"response": raw, "source": "samurai_gguf", "cost_usd": 0.0}
+
+        except Exception as exc:
+            logger.error(f"Mode Samouraï — erreur : {exc}")
+            if llm is not None:
+                try:
+                    del llm
+                    gc.collect()
+                except Exception:
+                    pass
+            return {"response": None, "source": "samurai_error", "cost_usd": 0.0}
 
     async def analyze_github_commits(self, payload: dict) -> dict:
         """
         Analyse LLM des commits GitHub pour détecter le fake-dev.
-        Priorité : Ollama local → Claude → fallback score=50.
+        Priorité : Claude Haiku → Mode Samouraï (GGUF 1.5B) → fallback score=50.
         """
+        import asyncio as _asyncio
+
         repo = payload.get("repo", "unknown")
 
         system_prompt = (
@@ -393,7 +381,7 @@ class BrainLink:
             "Tu réponds UNIQUEMENT en JSON valide. Zéro texte hors du JSON."
         )
 
-        # Tronquer le sample pour rester dans le budget tokens (~6k chars max)
+        # Tronquer le sample pour rester dans le budget tokens (~6k chars max pour Claude)
         sample = payload.get("commits_sample", [])
         truncated_sample = []
         for c in sample[:10]:  # Max 10 commits pour le LLM
@@ -409,7 +397,6 @@ class BrainLink:
                         "status": f["status"],
                         "additions": f["additions"],
                         "deletions": f["deletions"],
-                        # Patch encore plus tronqué pour le LLM
                         "patch": (f.get("patch") or "")[:150],
                     }
                     for f in c.get("files", [])[:3]  # Max 3 fichiers/commit
@@ -453,29 +440,34 @@ class BrainLink:
             {"role": "user", "content": user_prompt},
         ]
 
-        # ── 1. Ollama local ──────────────────────────────
-        if self.is_local_alive():
-            try:
-                import asyncio as _asyncio
-                loop = _asyncio.get_running_loop()
-                result = await loop.run_in_executor(
-                    None, self._think_local, messages, "github_audit"
-                )
-                if result.get("response"):
-                    parsed = self._parse_audit_response(result, repo)
-                    if parsed.get("confidence", 0) > 0:
-                        return parsed
-            except Exception as exc:
-                logger.warning(f"analyze_github_commits — Ollama échoué : {exc}")
-
-        # ── 2. Claude fallback ───────────────────────────
+        # ── 1. Claude Haiku (primaire) ───────────────────
         if self._claude_budget_remaining() > 0:
             result = self._think_claude(messages, "github_audit")
             self._last_claude_call = time.time()
             if result.get("response"):
                 return self._parse_audit_response(result, repo)
 
-        # ── 3. Indisponible ──────────────────────────────
+        # ── 2. Mode Samouraï — GGUF 1.5B (fallback) ─────
+        logger.info(f"analyze_github_commits — Claude indisponible, passage en Mode Samouraï pour {repo}")
+        samurai_sample = self._preprocess_audit_payload(sample)
+        samurai_prompt = (
+            f"Repo: {repo}\n"
+            f"Metrics: {json.dumps(payload['metrics'])}\n"
+            f"Commits: {samurai_sample}\n\n"
+            "JSON only:\n"
+            "{\"bullshit_score\":<0-100>,\"verdict\":\"<15 mots max>\","
+            "\"technical_reality\":\"<50 mots max>\",\"red_flags\":[],\"green_flags\":[],"
+            "\"recommendation\":\"INVEST|CAUTION|AVOID\",\"confidence\":<0.0-1.0>}"
+        )
+
+        loop = _asyncio.get_running_loop()
+        result = await loop.run_in_executor(
+            None, self._analyze_samurai_sync, samurai_prompt, system_prompt
+        )
+        if result.get("response"):
+            return self._parse_audit_response(result, repo)
+
+        # ── 3. Fallback heuristique ───────────────────────
         logger.warning(f"analyze_github_commits — tous cerveaux indisponibles pour {repo}")
         return {
             "bullshit_score": 50,
@@ -521,7 +513,7 @@ class BrainLink:
     # ── Helpers ────────────────────────────────────────
 
     def _parse_json_response(self, result: dict) -> dict:
-        """Parse une réponse JSON Constitution depuis Claude ou Ollama."""
+        """Parse une réponse JSON Constitution depuis Claude."""
         raw = result["response"].strip()
         if raw.startswith("```"):
             lines = raw.split("\n")

@@ -17,6 +17,10 @@ backups/
 logs/
 *.log
 
+# Modèles GGUF (binaires lourds, téléchargés sur VPS)
+models/
+*.gguf
+
 # Python
 __pycache__/
 *.pyc
