@@ -13,11 +13,28 @@ from pathlib import Path
 
 # ── Configuration VPS ─────────────────────────────────
 VPS_USER = "debian"
-VPS_HOST = "REMPLACER_PAR_IP_VPS"
-VPS_PATH = "/home/debian/0xeemini"
-LOCAL_PATH = "/home/pankso/Dev/0xeemini"
+VPS_HOST = "193.108.54.70"
+VPS_PATH = "/home/debian/0xeeMini"
+VPS_WEB_PATH = "/home/debian/vhosts/mini.0xee.li/www"
+LOCAL_PATH = "/home/pankso/Dev/0xeeMini"
 SERVICE_NAME = "0xeemini"
 KEEP_BACKUPS = 10
+
+# ── Cerveau réflexe ────────────────────────────────────
+GGUF_MODEL_NAME = "qwen2.5-0.5b-instruct-q4_k_m.gguf"
+GGUF_URL = (
+    "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF"
+    "/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf"
+)
+GGUF_REMOTE_PATH = f"{VPS_PATH}/models/{GGUF_MODEL_NAME}"
+
+# ── Mode Samouraï — audit GGUF 1.5B ───────────────────
+SAMURAI_MODEL_NAME = "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"
+SAMURAI_URL = (
+    "https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF"
+    "/resolve/main/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"
+)
+SAMURAI_REMOTE_PATH = f"{VPS_PATH}/models/{SAMURAI_MODEL_NAME}"
 
 # ── Helpers ───────────────────────────────────────────
 
@@ -73,9 +90,23 @@ def cmd_deploy() -> None:
         f"{VPS_USER}@{VPS_HOST}:{VPS_PATH}/",
     ])
 
-    # Installer les dépendances
-    _print_section("pip install")
-    _ssh(f"cd {VPS_PATH} && pip install --user -q -r requirements.txt")
+    # Venv + dépendances
+    _print_section("venv + pip install")
+    _ssh(
+        f"cd {VPS_PATH} && "
+        f"python3 -m venv .venv && "
+        f".venv/bin/pip install -q -r requirements.txt"
+    )
+
+    # Installer le service systemd (idempotent)
+    _print_section("install service")
+    _ssh(
+        f"mkdir -p ~/.config/systemd/user && "
+        f"cp {VPS_PATH}/0xeemini.service ~/.config/systemd/user/ && "
+        f"systemctl --user daemon-reload && "
+        f"systemctl --user enable {SERVICE_NAME}.service && "
+        f"loginctl enable-linger debian"
+    )
 
     # Redémarrer le service
     _print_section("restart service")
@@ -185,9 +216,38 @@ def cmd_wallet() -> None:
 
     _print_section("Wallet Status")
     _ssh(
-        f"cd {VPS_PATH} && python3 -c "
-        f"\"from oxeemini.config import CFG; from oxeemini.profit_engine import ProfitEngine; "
-        f"ProfitEngine(CFG).print_wallet_status()\""
+        f"cd {VPS_PATH} && .venv/bin/python -c \""
+        f"import importlib, sys; sys.path.insert(0, '.'); "
+        f"cfg_mod = importlib.import_module('0xeemini.config'); "
+        f"pe_mod = importlib.import_module('0xeemini.profit_engine'); "
+        f"pe_mod.ProfitEngine(cfg_mod.CFG).print_wallet_status()"
+        f"\""
+    )
+
+
+def cmd_transfer_test() -> None:
+    """Envoie 10 USDC vers le wallet owner (test du ProfitEngine)."""
+    if not _check_vps_configured():
+        return
+
+    print(f"💸 Test transfert 10 USDC → OWNER_SOLFLARE_ADDRESS")
+    print(f"   Kill window : 60s après signature (SIGTERM pour annuler)")
+    print(f"   Ctrl+C pour annuler AVANT la signature\n")
+
+    _ssh(
+        f"cd {VPS_PATH} && .venv/bin/python -c \""
+        f"import importlib, sys, asyncio; sys.path.insert(0, '.'); "
+        f"cfg_mod = importlib.import_module('0xeemini.config'); "
+        f"pe_mod = importlib.import_module('0xeemini.profit_engine'); "
+        f"pe = pe_mod.ProfitEngine(cfg_mod.CFG); "
+        f"result = asyncio.run(pe.execute_transfer({{"
+        f"  'tx_type': 'OWNER_TEST', "
+        f"  'amount_usdc': 10.0, "
+        f"  'to_wallet': cfg_mod.CFG['owner_address'], "
+        f"  'memo': '0xeeMini test transfer', "
+        f"  'idempotency_key': 'owner_test_2026_02'"
+        f"}}))"
+        f"\""
     )
 
 
@@ -207,6 +267,114 @@ def cmd_start() -> None:
     print(f"▶️  Démarrage de {SERVICE_NAME}.service")
     _ssh(f"systemctl --user start {SERVICE_NAME}.service")
     _ssh(f"systemctl --user status {SERVICE_NAME}.service --no-pager")
+
+
+def cmd_download_model() -> None:
+    """Télécharge le modèle GGUF (cerveau réflexe) sur le VPS."""
+    if not _check_vps_configured():
+        return
+
+    # Vérifier si déjà présent
+    check = _ssh(f"test -f {GGUF_REMOTE_PATH} && echo EXISTS", capture=True)
+    if "EXISTS" in check.stdout:
+        print(f"✅ Modèle déjà présent : {GGUF_REMOTE_PATH}")
+        size = _ssh(f"du -h {GGUF_REMOTE_PATH} | cut -f1", capture=True).stdout.strip()
+        print(f"   Taille : {size}")
+        return
+
+    print(f"📥 Téléchargement du cerveau réflexe → {GGUF_REMOTE_PATH}")
+    print(f"   Source : {GGUF_URL}")
+    print(f"   ~400 Mo — patience...\n")
+
+    _ssh(f"mkdir -p {VPS_PATH}/models")
+    _ssh(
+        f"wget -q --show-progress -O {GGUF_REMOTE_PATH} '{GGUF_URL}'"
+    )
+
+    # Vérification
+    check2 = _ssh(f"test -f {GGUF_REMOTE_PATH} && du -h {GGUF_REMOTE_PATH} | cut -f1", capture=True)
+    if check2.returncode == 0:
+        print(f"\n✅ Modèle téléchargé : {check2.stdout.strip()}")
+    else:
+        print("\n❌ Téléchargement échoué.")
+
+
+def cmd_install_brain() -> None:
+    """Installe llama-cpp-python sur le VPS (compilation C++ ~10 min)."""
+    if not _check_vps_configured():
+        return
+
+    # Vérifier si déjà installé
+    check = _ssh(
+        f"{VPS_PATH}/.venv/bin/python -c 'import llama_cpp; print(llama_cpp.__version__)'",
+        capture=True,
+    )
+    if check.returncode == 0:
+        print(f"✅ llama-cpp-python déjà installé : v{check.stdout.strip()}")
+        return
+
+    print("🔧 Installation de llama-cpp-python sur le VPS")
+    print("   Compilation C++ native — ~10 minutes selon le CPU\n")
+
+    # Dépendances système
+    _print_section("apt — outils de compilation")
+    _ssh("sudo apt-get install -y -q cmake build-essential python3-dev")
+
+    # Compilation llama-cpp-python (BLAS off, 1 thread pour économiser la RAM)
+    _print_section("pip — llama-cpp-python (compilation)")
+    _ssh(
+        f"cd {VPS_PATH} && "
+        f"CMAKE_ARGS='-DLLAMA_BLAS=OFF' MAKEFLAGS='-j1' "
+        f".venv/bin/pip install llama-cpp-python"
+    )
+
+    # Vérification
+    check2 = _ssh(
+        f"{VPS_PATH}/.venv/bin/python -c 'import llama_cpp; print(llama_cpp.__version__)'",
+        capture=True,
+    )
+    if check2.returncode == 0:
+        print(f"\n✅ llama-cpp-python installé : v{check2.stdout.strip()}")
+        print("\n📋 Prochaine étape :")
+        print(f"   ./mini download-model   (si pas encore fait)")
+        print(f"   ./mini deploy           (redémarre l'agent)")
+    else:
+        print("\n❌ Installation échouée — voir erreurs ci-dessus.")
+
+
+def cmd_download_audit_model() -> None:
+    """Télécharge le modèle Samouraï GGUF 1.5B (audit GitHub) sur le VPS."""
+    if not _check_vps_configured():
+        return
+
+    # Vérifier si déjà présent
+    check = _ssh(f"test -f {SAMURAI_REMOTE_PATH} && echo EXISTS", capture=True)
+    if "EXISTS" in check.stdout:
+        print(f"✅ Modèle Samouraï déjà présent : {SAMURAI_REMOTE_PATH}")
+        size = _ssh(f"du -h {SAMURAI_REMOTE_PATH} | cut -f1", capture=True).stdout.strip()
+        print(f"   Taille : {size}")
+        return
+
+    print(f"📥 Téléchargement du Mode Samouraï → {SAMURAI_REMOTE_PATH}")
+    print(f"   Source : {SAMURAI_URL}")
+    print(f"   ~900 Mo — patience...\n")
+
+    _ssh(f"mkdir -p {VPS_PATH}/models")
+    _ssh(
+        f"wget -q --show-progress -O {SAMURAI_REMOTE_PATH} '{SAMURAI_URL}'"
+    )
+
+    # Vérification
+    check2 = _ssh(
+        f"test -f {SAMURAI_REMOTE_PATH} && du -h {SAMURAI_REMOTE_PATH} | cut -f1",
+        capture=True,
+    )
+    if check2.returncode == 0:
+        print(f"\n✅ Modèle Samouraï téléchargé : {check2.stdout.strip()}")
+        print(f"   BRAIN_AUDIT_MODEL_PATH déjà configuré par défaut dans config.py")
+        print(f"   Redémarre l'agent : ./mini deploy")
+    else:
+        print("\n❌ Téléchargement échoué — voir erreurs ci-dessus.")
 
 
 def cmd_setup_vps() -> None:
@@ -246,14 +414,18 @@ def cmd_setup_vps() -> None:
 # ── Dispatcher ────────────────────────────────────────
 
 COMMANDS = {
-    "deploy":     (cmd_deploy,    "Déploie sur le VPS et redémarre"),
-    "status":     (cmd_status,    "Affiche statut service + RAM + logs"),
-    "logs":       (cmd_logs,      "Suit les logs en temps réel"),
-    "backup":     (cmd_backup,    "Télécharge et vérifie la DB"),
-    "wallet":     (cmd_wallet,    "Affiche le statut du wallet USDC"),
-    "stop":       (cmd_stop,      "Arrête le service"),
-    "start":      (cmd_start,     "Démarre le service"),
-    "setup-vps":  (cmd_setup_vps, "Configure les secrets sur le VPS"),
+    "deploy":          (cmd_deploy,         "Déploie sur le VPS et redémarre"),
+    "status":          (cmd_status,         "Affiche statut service + RAM + logs"),
+    "logs":            (cmd_logs,           "Suit les logs en temps réel"),
+    "backup":          (cmd_backup,         "Télécharge et vérifie la DB"),
+    "wallet":          (cmd_wallet,         "Affiche le statut du wallet USDC"),
+    "stop":            (cmd_stop,           "Arrête le service"),
+    "start":           (cmd_start,          "Démarre le service"),
+    "setup-vps":       (cmd_setup_vps,      "Configure les secrets sur le VPS"),
+    "install-brain":        (cmd_install_brain,        "Installe llama-cpp-python sur le VPS"),
+    "download-model":       (cmd_download_model,       "Télécharge le cerveau réflexe 0.5B (~400 Mo)"),
+    "download-audit-model": (cmd_download_audit_model, "Télécharge le Mode Samouraï 1.5B (~900 Mo)"),
+    "transfer-test":   (cmd_transfer_test,  "Envoie 10 USDC vers le wallet owner (test)"),
 }
 
 

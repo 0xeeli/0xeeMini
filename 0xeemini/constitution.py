@@ -92,6 +92,45 @@ Threat levels :
 """
 
 
+# ── Cerveau Réflexe (Qwen 0.5B GGUF) ─────────────────
+# Prompt compact pour n_ctx=512 — zéro superflu
+REFLEX_SYSTEM_PROMPT = """Tu es 0xeeMini, agent financier autonome sur Solana/VPS.
+Règles absolues (priorité stricte) :
+1. Si balance < reserve_min → action=WAIT
+2. Si doute → action=WAIT
+3. Transfert > 5 USDC → kill_switch=true obligatoire
+4. Actions possibles : WAIT | EXECUTE_TRANSFER | ALERT_OWNER | ABORT
+Réponds UNIQUEMENT en JSON valide, sans texte hors du JSON."""
+
+
+def build_reflex_prompt(runtime_state: dict) -> str:
+    """Prompt ultra-compact pour le cerveau réflexe (budget contexte: ~150 tokens)."""
+    balance  = runtime_state.get("balance_usdc", 0.0)
+    reserve  = runtime_state.get("reserve_minimum", 15.0)
+    vps_paid = runtime_state.get("vps_paid_this_month", False)
+    ram_pct  = runtime_state.get("ram_pct", 0.0)
+    profit   = runtime_state.get("monthly_profit_so_far", 0.0)
+    cycle    = runtime_state.get("cycle_count", 0)
+    threat   = "RED" if balance < reserve else ("YELLOW" if not vps_paid else "GREEN")
+
+    # Guidance explicite selon le threat pour éviter les faux EXECUTE_TRANSFER
+    if balance <= 0:
+        guidance = "balance=0 → action=WAIT obligatoire, pas de transfert possible."
+    elif balance < reserve:
+        guidance = f"balance < reserve → WAIT ou ALERT_OWNER seulement."
+    else:
+        guidance = "Situation nominale → WAIT sauf urgence."
+
+    return (
+        f"balance={balance:.2f} USDC reserve={reserve:.2f} "
+        f"vps_paid={vps_paid} ram={ram_pct:.0f}% "
+        f"profit={profit:.2f} cycle={cycle} threat={threat}. "
+        f"{guidance}\n"
+        f'JSON: {{"action":"WAIT","confidence":0.9,'
+        f'"rationale":"...","threat":"{threat}","kill_switch":false}}'
+    )
+
+
 _JSON_SCHEMA_EXAMPLE = {
     "0xeemini_version": "0.1",
     "timestamp_utc": "2025-01-01T00:00:00Z",
@@ -141,6 +180,8 @@ def build_prompt(runtime_state: dict) -> str:
     reserve_min = runtime_state.get("reserve_minimum", 15.0)
     vps_cost = runtime_state.get("vps_monthly_cost", 5.0)
     recovery_mode = runtime_state.get("recovery_mode", False)
+    owner_address = runtime_state.get("owner_address", "")
+    agent_wallet = runtime_state.get("agent_wallet", "")
 
     # Calcul threat level pour guidance
     if balance < reserve_min:
@@ -158,14 +199,62 @@ def build_prompt(runtime_state: dict) -> str:
         for e in last_events[-5:]
     ) or "  (aucun événement récent)"
 
+    # Calcul du surplus disponible pour transfert owner
+    surplus = max(0.0, balance - reserve_min - vps_cost)
+
+    # Données catalogue
+    content_count = runtime_state.get("content_count", 0)
+    last_content_ts = runtime_state.get("last_content_ts")
+    hours_since_hustle: float = 999.0
+    if last_content_ts:
+        try:
+            from datetime import datetime as _dt
+            last_dt = _dt.fromisoformat(last_content_ts.replace("Z", "+00:00"))
+            if last_dt.tzinfo is None:
+                last_dt = last_dt.replace(tzinfo=timezone.utc)
+            hours_since_hustle = (datetime.now(timezone.utc) - last_dt).total_seconds() / 3600
+        except Exception:
+            pass
+
+    # Guidance surplus → profit_transfer
+    if threat == "GREEN" and surplus >= 5.0:
+        surplus_guidance = (
+            f"\n⚡ SURPLUS DISPONIBLE : {surplus:.4f} USDC transférable à l'owner.\n"
+            f"  → EXECUTE_TRANSFER recommandé : tx_type=profit_transfer, "
+            f"amount_usdc={surplus:.4f}, to_wallet={owner_address}\n"
+            f"  Garde impérativement {reserve_min:.2f} USDC de réserve + {vps_cost:.2f} USDC VPS.\n"
+        )
+    else:
+        surplus_guidance = ""
+
+    # Guidance hustle → génération de contenu
+    hustle_needed = content_count < 5 or hours_since_hustle >= 4.0
+    if threat in ("GREEN", "YELLOW") and vps_paid and hustle_needed:
+        hustle_hint = (
+            f"\n📝 HUSTLE RECOMMANDÉ : catalogue={content_count} items, "
+            f"dernier={hours_since_hustle:.1f}h.\n"
+            f"  → RUN_HUSTLE pour générer de nouveaux insights (revenus paywall).\n"
+        )
+    else:
+        hustle_hint = ""
+
     prompt = f"""=== ÉTAT RUNTIME 0xeeMINI — {now} ===
 
 FINANCES :
   Solde USDC          : {balance:.4f} USDC
   Réserve minimum     : {reserve_min:.2f} USDC
+  Surplus disponible  : {surplus:.4f} USDC  (= solde - réserve - VPS)
   Profit mois en cours: {monthly_profit:.4f} USDC
   Coût VPS mensuel    : {vps_cost:.2f} USD
   VPS payé ce mois    : {"✅ OUI" if vps_paid else "❌ NON"}
+
+CATALOGUE PAYWALL :
+  Insights disponibles : {content_count} items
+  Dernier hustle       : {f"{hours_since_hustle:.1f}h" if hours_since_hustle < 999 else "jamais"}
+
+ADRESSES AUTORISÉES (utiliser EXACTEMENT ces valeurs pour to_wallet) :
+  owner (profit)      : {owner_address}
+  agent (VPS acctg)   : {agent_wallet}
 
 SYSTÈME :
   RAM utilisée        : {ram_pct:.1f}%
@@ -173,14 +262,16 @@ SYSTÈME :
   Uptime              : {uptime}s
   Mode recovery       : {"⚠️ OUI" if recovery_mode else "non"}
   Threat évalué       : {threat}{f" — {threat_reason}" if threat_reason else ""}
-
+{surplus_guidance}{hustle_hint}
 ÉVÉNEMENTS RÉCENTS :
 {recent_events_str}
 
 === INSTRUCTION ===
 Analyse la situation et retourne ta décision en JSON strict.
 Respecte les lignes rouges de ta Constitution.
+Priorités : 1) VPS survival 2) RUN_HUSTLE si catalogue vide/vieux 3) EXECUTE_TRANSFER profit si surplus >= 5 USDC.
 Si aucune action nécessaire → action="WAIT".
+Pour EXECUTE_TRANSFER, utilise EXACTEMENT les adresses listées ci-dessus.
 
 Exemple de format attendu :
 {json.dumps(_JSON_SCHEMA_EXAMPLE, indent=2, ensure_ascii=False)}

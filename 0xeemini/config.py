@@ -49,13 +49,11 @@ def load_config() -> dict:
             str(Path.home() / "0xeeMini" / "models" / "qwen2.5-0.5b-instruct-q4_k_m.gguf"),
         ),
 
-        # Ollama local (optionnel — tunnel reverse SSH ou SSH direct)
-        "ollama_tunnel_port": int(os.getenv("OLLAMA_TUNNEL_PORT", "0")),
-        "local_ssh_host":    os.getenv("LOCAL_SSH_HOST", ""),
-        "local_ssh_user":    os.getenv("LOCAL_SSH_USER", "pankso"),
-        "local_ssh_port":    int(os.getenv("LOCAL_SSH_PORT", "22")),
-        "ollama_port":       int(os.getenv("OLLAMA_PORT", "11434")),
-        "brain_model":       os.getenv("BRAIN_MODEL", "qwen2.5-coder:7b"),
+        # Mode Samouraï — GGUF 1.5B pour audit GitHub (éphémère, fallback si Claude indispo)
+        "brain_audit_model_path": os.getenv(
+            "BRAIN_AUDIT_MODEL_PATH",
+            str(Path.home() / "0xeeMini" / "models" / "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"),
+        ),
 
         # Alertes
         "webhook_url":       os.getenv("WEBHOOK_ALERT_URL", ""),

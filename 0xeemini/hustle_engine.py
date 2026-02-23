@@ -4,7 +4,7 @@
 #
 # Pipeline :
 #   1. Fetch sources (Hacker News, CoinGecko) — gratuit, sans clé
-#   2. Générer insights via cerveau local (Ollama > GGUF > Claude fallback)
+#   2. Générer insights via GGUF VPS (0.5B) > Claude Haiku (fallback)
 #   3. Stocker dans content_cache → disponible sur /catalog
 # ─────────────────────────────────────────────────────
 
@@ -169,9 +169,8 @@ class HustleEngine:
     async def _generate_insight(self, item: dict) -> dict | None:
         """
         Génération d'insight. Ordre de priorité :
-          1. Ollama local (via tunnel ou SSH) — coût zéro
-          2. GGUF sur VPS (Qwen2.5-0.5B)     — coût zéro
-          3. Claude Haiku                      — fallback payant
+          1. GGUF sur VPS (Qwen2.5-0.5B) — coût zéro
+          2. Claude Haiku                  — fallback payant
         """
         messages = [
             {"role": "system", "content": INSIGHT_SYSTEM_PROMPT},
@@ -184,34 +183,12 @@ class HustleEngine:
             )},
         ]
 
-        # ── 1. Ollama local ──────────────────────────────
-        if self._brain is not None and self._brain.is_local_alive():
-            try:
-                loop = asyncio.get_running_loop()
-                result = await loop.run_in_executor(
-                    None, self._brain._think_local, messages, "hustle_insight"
-                )
-                if result.get("response"):
-                    parsed = self._parse_insight_json(result["response"], item)
-                    if parsed:
-                        log_event("HUSTLE_INSIGHT_SOURCE", {
-                            "source_brain": result.get("source", "local_ollama"),
-                            "title": item["title"][:60],
-                        })
-                        logger.info(
-                            f"HustleEngine — insight via {result.get('source', 'Ollama')} : "
-                            f"{item['title'][:50]}"
-                        )
-                        return parsed
-            except Exception as exc:
-                logger.warning(f"HustleEngine — Ollama local échoué : {exc}")
-
-        # ── 2. GGUF sur VPS ──────────────────────────────
+        # ── 1. GGUF sur VPS ──────────────────────────────
         gguf = await self._generate_gguf(item, messages)
         if gguf:
             return gguf
 
-        # ── 3. Claude Haiku (fallback) ───────────────────
+        # ── 2. Claude Haiku (fallback) ───────────────────
         api_key = self.cfg.get("claude_api_key", "")
         if api_key:
             return await self._generate_claude(item, messages[1]["content"])
