@@ -84,13 +84,22 @@ nav{
 /* ── HERO ── */
 .hero{
   min-height:100vh;
+  padding:5rem 1.5rem 3rem;
+  position:relative;
+  overflow:hidden;
+  display:flex;
+  align-items:stretch;
+}
+.hero-inner{
+  width:100%;
+  max-width:960px;
+  margin:0 auto;
   display:grid;
   grid-template-columns:1fr 360px;
   grid-template-rows:1fr auto;
-  padding:5rem 1.5rem 3rem;
   gap:0;
   position:relative;
-  overflow:hidden;
+  z-index:2;
 }
 
 /* Grid background */
@@ -121,7 +130,6 @@ nav{
 }
 
 .hero-main{
-  position:relative;z-index:2;
   display:flex;flex-direction:column;justify-content:center;
   padding-right:3rem;
 }
@@ -214,7 +222,6 @@ h1 .d{color:var(--text-d)}
 
 /* Right panel — data ticker */
 .hero-ticker{
-  position:relative;z-index:2;
   border-left:1px solid var(--border);
   padding-left:1.5rem;
   display:flex;flex-direction:column;gap:.75rem;
@@ -374,6 +381,55 @@ hr.div{border:none;border-top:1px solid var(--border);margin:0}
   text-align:right;
 }
 
+/* ── TELEGRAM ── */
+.tg-card{
+  display:grid;
+  grid-template-columns:auto 1fr auto;
+  align-items:center;
+  gap:2rem;
+  padding:2rem 2.5rem;
+  background:var(--bg2);
+  border:1px solid var(--border2);
+  position:relative;
+  overflow:hidden;
+}
+.tg-card::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(90deg,rgba(0,136,204,.07) 0%,transparent 60%);
+  pointer-events:none;
+}
+.tg-icon{
+  font-size:2.5rem;line-height:1;
+  filter:drop-shadow(0 0 12px rgba(0,136,204,.5));
+}
+.tg-body{}
+.tg-title{font-size:.95rem;font-weight:800;color:#fff;margin-bottom:.35rem}
+.tg-desc{font-size:.68rem;color:var(--text-d);line-height:1.7}
+.tg-desc code{
+  color:#29b6f6;
+  background:rgba(41,182,246,.08);
+  padding:.1em .35em;
+  font-family:var(--mono);
+}
+.btn-tg{
+  display:inline-flex;align-items:center;gap:.5rem;
+  padding:.65rem 1.5rem;
+  background:#0088cc;color:#fff;
+  font-family:var(--mono);font-size:.72rem;font-weight:700;
+  letter-spacing:.05em;text-decoration:none;border:none;
+  white-space:nowrap;
+  transition:all .2s;
+}
+.btn-tg:hover{
+  background:#29b6f6;
+  box-shadow:0 0 20px rgba(0,136,204,.4);
+  transform:translateY(-2px);
+}
+@media(max-width:700px){
+  .tg-card{grid-template-columns:auto 1fr;grid-template-rows:auto auto}
+  .btn-tg{grid-column:1/-1;justify-content:center}
+}
+
 /* ── FOOTER ── */
 footer{
   border-top:1px solid var(--border);
@@ -402,7 +458,8 @@ footer{
 
 /* ── RESPONSIVE ── */
 @media(max-width:900px){
-  .hero{grid-template-columns:1fr;grid-template-rows:auto}
+  .hero{align-items:flex-start}
+  .hero-inner{grid-template-columns:1fr;grid-template-rows:auto}
   .hero-ticker{border-left:none;border-top:1px solid var(--border);padding-left:0;padding-top:1.5rem;margin-top:2rem}
   .srv-grid{grid-template-columns:1fr}
   .stats-grid{grid-template-columns:1fr 1fr}
@@ -428,6 +485,7 @@ footer{
     <li><a href="#live">Live</a></li>
     <li><a href="/catalog" target="_blank">/catalog</a></li>
     <li><a href="/.well-known/agent.json" target="_blank">agent.json</a></li>
+    <li><a href="https://t.me/OxeeMini_Inspector_bot" target="_blank">Telegram</a></li>
   </ul>
   <div class="nav-right">
     <div class="dot"></div>
@@ -438,6 +496,7 @@ footer{
 <!-- ── HERO ── -->
 <section class="hero">
   <div class="hero-glow"></div>
+  <div class="hero-inner">
 
   <div class="hero-main">
     <div class="hero-eyebrow">autonomous financial agent · solana mainnet</div>
@@ -514,6 +573,8 @@ footer{
       → 200 {"score":15,"proof":"…"}
     </div>
   </div>
+
+  </div><!-- /.hero-inner -->
 </section>
 
 <hr class="div">
@@ -648,6 +709,29 @@ footer{
 
 <hr class="div">
 
+<!-- ── TELEGRAM ── -->
+<div class="section" id="telegram">
+  <div class="sec-label">interface</div>
+  <h2>Human-friendly access.</h2>
+  <p class="sec-sub">Prefer Telegram over raw HTTP? The bot handles payments, audits and insights — same backend, no code required.</p>
+
+  <div class="tg-card">
+    <div class="tg-icon">✈️</div>
+    <div class="tg-body">
+      <div class="tg-title">@OxeeMini_Inspector_bot</div>
+      <div class="tg-desc">
+        <code>/demo bitcoin/bitcoin</code> — free audit, no payment ·
+        <code>/audit owner/repo</code> — 0.50 USDC via Solana Pay deeplink ·
+        <code>/batch repo1 repo2 …</code> — up to 5 repos for 1.50 USDC ·
+        <code>/catalog</code> — browse insights
+      </div>
+    </div>
+    <a href="https://t.me/OxeeMini_Inspector_bot" target="_blank" class="btn-tg">Open in Telegram →</a>
+  </div>
+</div>
+
+<hr class="div">
+
 <!-- ── FOOTER ── -->
 <footer>
   <div class="footer-links">
@@ -656,7 +740,7 @@ footer{
     <a href="/.well-known/agent.json" target="_blank">agent.json</a>
     <a href="/.well-known/ai-plugin.json" target="_blank">ai-plugin.json</a>
     <a href="/openapi.json" target="_blank">OpenAPI</a>
-    <a href="https://t.me/0xeeMiniBot" target="_blank">@0xeeMiniBot</a>
+    <a href="https://t.me/OxeeMini_Inspector_bot" target="_blank">@OxeeMini_Inspector_bot</a>
   </div>
   <div class="footer-tag">Open source · Autonomous · On-chain</div>
   <div class="footer-copy">0xeeMini v0.3.0 · Solana Mainnet · HTTP 402 · CC0 · mini.0xee.li</div>
