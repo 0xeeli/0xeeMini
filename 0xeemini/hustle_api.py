@@ -16,7 +16,6 @@ from datetime import datetime, timezone
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from loguru import logger
 from pydantic import BaseModel
@@ -71,13 +70,8 @@ app = FastAPI(
     redoc_url=None,
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["*", "X-Payment-Tx", "x-action-version", "x-blockchain-ids"],
-    expose_headers=["X-Payment-Tx", "X-Powered-By", "X-Action-Version"],
-)
+# CORS handled entirely by lighttpd via setenv.add-response-header
+# (avoids duplicate headers that break Dialect validator OPTIONS preflight)
 
 _api = __import__('fastapi').APIRouter(prefix="/api")
 
