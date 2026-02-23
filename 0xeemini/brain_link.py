@@ -218,8 +218,11 @@ class BrainLink:
         if action not in {"WAIT", "EXECUTE_TRANSFER", "ALERT_OWNER", "ABORT"}:
             action = "WAIT"
 
-        # Le réflexe ne peut jamais déclencher un transfert sans détails (to_wallet, amount)
-        if action == "EXECUTE_TRANSFER" and balance <= 0:
+        # Le réflexe GGUF ne dispose pas de to_wallet/amount_usdc dans son format compact.
+        # EXECUTE_TRANSFER sans détails → downgrade WAIT systématique.
+        # Évite le faux positif : GGUF → EXECUTE_TRANSFER invalide → Claude voit l'event → ABORT.
+        if action == "EXECUTE_TRANSFER":
+            logger.debug("Réflexe GGUF — EXECUTE_TRANSFER sans détails wallet → WAIT")
             action = "WAIT"
 
         reserve = runtime_state.get("reserve_minimum", 15.0)
