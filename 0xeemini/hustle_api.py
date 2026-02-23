@@ -884,7 +884,16 @@ async def post_audit(body: AuditRequest):
         logger.warning(f"MOCK audit request : {body.repo_url}")
         log_event("AUDIT_MOCK", {"repo_url": body.repo_url, "buyer": body.buyer_wallet})
         try:
-            result = await GitHubAuditor(brain=_brain).run(body.repo_url)
+            auditor = GitHubAuditor(brain=_brain)
+            owner, repo = auditor._parse_repo_url(body.repo_url)
+            # Serve from cache if available (< 24h) — avoids re-fetching GitHub for every /demo
+            cached = GitHubAuditor.get_cached_audit(f"{owner}/{repo}")
+            if cached:
+                cached["mock"] = True
+                cached["_cached"] = True
+                logger.info(f"MOCK audit served from cache : {owner}/{repo}")
+                return JSONResponse({"status": "ok", **cached})
+            result = await auditor.run(body.repo_url)
             result["mock"] = True
             return JSONResponse({"status": "ok", **result})
         except GitHubAuditorError as exc:
