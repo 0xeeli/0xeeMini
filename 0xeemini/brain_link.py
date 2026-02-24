@@ -63,8 +63,9 @@ class BrainLink:
         reflex = self._think_reflex(runtime_state)
 
         # Fast-path réflexe si throttle Claude pas expiré
-        # (quel que soit l'action du réflexe — Claude décide 1x/10min max)
-        if reflex is not None and not self._claude_throttle_expired():
+        # Exception : ABORT ne peut jamais bypasser Claude (trop irréversible)
+        reflex_action = reflex.get("decision", {}).get("action") if reflex else None
+        if reflex is not None and not self._claude_throttle_expired() and reflex_action != "ABORT":
             logger.debug("BrainLink — fast-path réflexe (Claude throttlé)")
             return reflex
 
@@ -218,12 +219,18 @@ class BrainLink:
         if action not in {"WAIT", "EXECUTE_TRANSFER", "ALERT_OWNER", "ABORT"}:
             action = "WAIT"
 
-        # Le réflexe GGUF ne dispose pas de to_wallet/amount_usdc dans son format compact.
-        # EXECUTE_TRANSFER sans détails → downgrade WAIT systématique.
-        # Évite le faux positif : GGUF → EXECUTE_TRANSFER invalide → Claude voit l'event → ABORT.
+        # Le réflexe GGUF (0.5B) est trop petit pour des actions irréversibles.
+        # EXECUTE_TRANSFER : pas de to_wallet/amount dans le format compact → WAIT.
+        # ABORT            : downgrade ALERT_OWNER sauf si balance < réserve réelle.
         if action == "EXECUTE_TRANSFER":
             logger.debug("Réflexe GGUF — EXECUTE_TRANSFER sans détails wallet → WAIT")
             action = "WAIT"
+        elif action == "ABORT":
+            _bal = runtime_state.get("balance_usdc", 0.0)
+            _res = runtime_state.get("reserve_minimum", 15.0)
+            if _bal >= _res:
+                logger.warning("Réflexe GGUF — ABORT sur balance OK → ALERT_OWNER (faux positif)")
+                action = "ALERT_OWNER"
 
         reserve = runtime_state.get("reserve_minimum", 15.0)
         vps_paid = runtime_state.get("vps_paid_this_month", False)
