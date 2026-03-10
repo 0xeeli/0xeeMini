@@ -257,8 +257,10 @@ def test_audit_mock_buyer_returns_200():
 
     mock_auditor = AsyncMock()
     mock_auditor.run = AsyncMock(return_value=mock_result)
+    mock_auditor._parse_repo_url = MagicMock(return_value=("bitcoin", "bitcoin"))
 
-    with patch.object(_api_mod, "GitHubAuditor", return_value=mock_auditor):
+    with patch.object(_api_mod, "GitHubAuditor", return_value=mock_auditor) as mock_cls:
+        mock_cls.get_cached_audit = MagicMock(return_value=None)
         client = TestClient(_api_mod.app, raise_server_exceptions=True)
         resp = client.post(
             "/audit",
