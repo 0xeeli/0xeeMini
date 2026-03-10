@@ -244,6 +244,141 @@ async def health():
     }
 
 
+def _compute_journey(cfg: dict) -> dict:
+    """
+    Journey : bootstrapping its own intelligence.
+    3 stages définis par les coûts opérationnels mensuels :
+      Minimal  ($10/mo) : 0.5B GGUF, 2GB VPS, $5 Claude  ← now
+      Growth   ($20/mo) : 3B GGUF,   4GB VPS, $10 Claude
+      Scale    ($40/mo) : 7B GGUF,   8GB VPS, $20 Claude
+    Milestone "viable"       : un mois avec distribution >= coût total actuel
+    Milestone "growth_unlock": un mois avec distribution >= coût stage suivant
+    """
+    from .core import get_state, set_state
+
+    vps_cost     = cfg.get("vps_monthly_cost", 5.0)
+    claude_budget = cfg.get("claude_budget", 5.0)
+    op_cost      = vps_cost + claude_budget   # coût opérationnel total actuel
+    owner        = cfg.get("owner_address", "")
+
+    # Timestamp de départ du journey (ignoré : transfers de pre-funding)
+    journey_start = get_state("journey_start_ts", "")
+    if not journey_start:
+        journey_start = datetime.now(timezone.utc).isoformat()
+        set_state("journey_start_ts", journey_start)
+
+    with get_db() as conn:
+        genesis_row = conn.execute(
+            "SELECT ts FROM system_events WHERE event_type='AGENT_STARTED' ORDER BY ts ASC LIMIT 1"
+        ).fetchone()
+        genesis_ts = genesis_row["ts"] if genesis_row else None
+
+        # Revenus paywall réels
+        earned_row = conn.execute(
+            "SELECT COALESCE(SUM(amount_usdc), 0.0) AS total FROM paid_access"
+        ).fetchone()
+        total_earned = round(float(earned_row["total"]), 4)
+
+        # Transferts mensuels vers owner depuis journey_start
+        monthly_rows = conn.execute(
+            """SELECT strftime('%Y-%m', created_at) AS month,
+                      SUM(amount_usdc) AS total
+               FROM transactions
+               WHERE tx_type IN ('PROFIT_DISTRIBUTION', 'PROFIT_TRANSFER')
+                 AND status = 'CONFIRMED'
+                 AND to_wallet = ?
+                 AND created_at >= ?
+               GROUP BY month
+               ORDER BY month ASC""",
+            (owner, journey_start),
+        ).fetchall()
+
+    monthly = [{"month": r["month"], "total": round(float(r["total"]), 4)} for r in monthly_rows]
+
+    def _days_between(ts_a: str, ts_b: str) -> int | None:
+        try:
+            from datetime import datetime as _dt
+            a = _dt.fromisoformat(ts_a.replace("Z", "+00:00"))
+            b = _dt.fromisoformat(ts_b.replace("Z", "+00:00"))
+            if a.tzinfo is None: a = a.replace(tzinfo=timezone.utc)
+            if b.tzinfo is None: b = b.replace(tzinfo=timezone.utc)
+            return (b - a).days
+        except Exception:
+            return None
+
+    days_since = _days_between(genesis_ts, datetime.now(timezone.utc).isoformat()) if genesis_ts else None
+
+    # Stages d'upgrade — chaque stage défini par son coût opérationnel mensuel
+    stages = [
+        {"id": "minimal", "label": "Minimal",  "model": "0.5B GGUF", "vps": "2GB",  "op_cost": 10.0},
+        {"id": "growth",  "label": "Growth",   "model": "3B GGUF",   "vps": "4GB",  "op_cost": 20.0},
+        {"id": "scale",   "label": "Scale",    "model": "7B GGUF",   "vps": "8GB",  "op_cost": 40.0},
+    ]
+
+    # Milestone viable : premier mois avec distribution >= coût opérationnel actuel
+    viable_at = get_state("journey_viable_at", "") or None
+    if not viable_at:
+        for m in monthly:
+            if m["total"] >= op_cost:
+                viable_at = datetime.now(timezone.utc).isoformat()
+                set_state("journey_viable_at", viable_at)
+                break
+
+    # Milestone growth_unlock : premier mois avec distribution >= 20 USDC
+    growth_at = get_state("journey_growth_at", "") or None
+    if not growth_at:
+        for m in monthly:
+            if m["total"] >= 20.0:
+                growth_at = datetime.now(timezone.utc).isoformat()
+                set_state("journey_growth_at", growth_at)
+                break
+
+    # Milestone scale_unlock : premier mois avec distribution >= 40 USDC
+    scale_at = get_state("journey_scale_at", "") or None
+    if not scale_at:
+        for m in monthly:
+            if m["total"] >= 40.0:
+                scale_at = datetime.now(timezone.utc).isoformat()
+                set_state("journey_scale_at", scale_at)
+                break
+
+    # Stage courant
+    current_stage = "minimal"
+    if scale_at:   current_stage = "scale"
+    elif growth_at: current_stage = "growth"
+
+    # Cumul mensuel en cours
+    current_month = datetime.now(timezone.utc).strftime("%Y-%m")
+    current_month_dist = round(sum(m["total"] for m in monthly if m["month"] == current_month), 4)
+
+    # Prochain objectif
+    next_target = 20.0 if current_stage == "minimal" else (40.0 if current_stage == "growth" else None)
+
+    return {
+        "genesis_ts":              genesis_ts,
+        "journey_start_ts":        journey_start,
+        "days_since_genesis":      days_since,
+        "total_earned_usdc":       total_earned,
+        "operational_cost_monthly": round(op_cost, 2),
+        "current_stage":           current_stage,
+        "current_month_distributed": current_month_dist,
+        "monthly_distributions":   monthly,
+        "next_stage_target_usdc":  next_target,
+        "stages":                  stages,
+        "milestones": {
+            "viable":       {"achieved": viable_at is not None, "achieved_at": viable_at,
+                             "achieved_in_days": _days_between(genesis_ts, viable_at) if (genesis_ts and viable_at) else None,
+                             "target_usdc": op_cost},
+            "growth_unlock": {"achieved": growth_at is not None, "achieved_at": growth_at,
+                              "achieved_in_days": _days_between(genesis_ts, growth_at) if (genesis_ts and growth_at) else None,
+                              "target_usdc": 20.0},
+            "scale_unlock":  {"achieved": scale_at is not None, "achieved_at": scale_at,
+                              "achieved_in_days": _days_between(genesis_ts, scale_at) if (genesis_ts and scale_at) else None,
+                              "target_usdc": 40.0},
+        },
+    }
+
+
 @app.get("/status")
 async def status():
     from .config import CFG
@@ -294,6 +429,7 @@ async def status():
             "monthly_profit": monthly_profit,
             "vps_paid_this_month": vps_paid,
             "claude_spent_usd": round(claude_spent, 5),
+            "operational_cost_monthly": round(CFG["vps_monthly_cost"] + CFG["claude_budget"], 2),
         },
         "catalog": {
             "count": content_count,
@@ -321,6 +457,7 @@ async def status():
             }
             for tx in last_txs
         ],
+        "journey": _compute_journey(CFG),
     }
 
 

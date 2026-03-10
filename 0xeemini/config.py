@@ -62,7 +62,7 @@ def load_config() -> dict:
         "webhook_url":       os.getenv("WEBHOOK_ALERT_URL", ""),
 
         # Finance
-        "reserve_minimum":   float(os.getenv("RESERVE_MINIMUM_USDC", "15.0")),
+        "reserve_minimum":   float(os.getenv("RESERVE_MINIMUM_USDC", "10.0")),
         "price_per_insight": float(os.getenv("PRICE_PER_INSIGHT_USDC", "0.10")),
         "price_per_audit":   float(os.getenv("PRICE_PER_AUDIT_USDC", "0.50")),
         "vps_monthly_cost":  float(os.getenv("VPS_MONTHLY_COST_USD", "5.00")),

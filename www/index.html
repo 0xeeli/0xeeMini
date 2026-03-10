@@ -27,6 +27,11 @@
   --border:   #131820;
   --border2:  #1e2535;
   --mono:     'JetBrains Mono', monospace;
+  /* Solana */
+  --sol:      #9945FF;
+  --mint:     #14F195;
+  --sol-g:    rgba(153,69,255,.10);
+  --sol-grad: linear-gradient(90deg, #9945FF, #14F195);
 }
 
 *{margin:0;padding:0;box-sizing:border-box}
@@ -41,15 +46,6 @@ body{
   min-height:100vh;
   overflow-x:hidden;
   cursor:crosshair;
-}
-
-/* ── REFRESH BAR ── */
-#rbar{
-  position:fixed;top:0;left:0;right:0;z-index:200;
-  height:2px;background:var(--green);
-  box-shadow:0 0 12px var(--green);
-  transform-origin:left;
-  will-change:transform;
 }
 
 /* ── NAV ── */
@@ -123,15 +119,21 @@ nav{
   background:repeating-linear-gradient(
     0deg,
     transparent,transparent 3px,
-    rgba(0,255,136,.018) 3px,rgba(0,255,136,.018) 4px
+    rgba(153,69,255,.012) 3px,rgba(153,69,255,.012) 4px
   );
   pointer-events:none;
 }
-/* Glow vignette */
+/* Glow vignette — Solana gradient */
 .hero-glow{
-  position:absolute;top:20%;left:5%;
-  width:500px;height:400px;
-  background:radial-gradient(ellipse,rgba(0,255,136,.06) 0%,transparent 70%);
+  position:absolute;top:10%;left:-5%;
+  width:600px;height:500px;
+  background:radial-gradient(ellipse,rgba(153,69,255,.09) 0%,rgba(20,241,149,.04) 50%,transparent 70%);
+  pointer-events:none;z-index:0;
+}
+.hero-glow2{
+  position:absolute;bottom:10%;right:0%;
+  width:400px;height:350px;
+  background:radial-gradient(ellipse,rgba(20,241,149,.06) 0%,transparent 70%);
   pointer-events:none;z-index:0;
 }
 
@@ -203,6 +205,20 @@ h1 .d{color:var(--text-d)}
   border:1px solid var(--border2);
 }
 .btn-o:hover{border-color:var(--green);color:var(--green)}
+.btn-sol{
+  background:var(--sol-grad);color:#000;font-weight:800;
+  position:relative;overflow:hidden;
+}
+.btn-sol::after{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(90deg,rgba(255,255,255,.15),transparent);
+  opacity:0;transition:opacity .2s;
+}
+.btn-sol:hover::after{opacity:1}
+.btn-sol:hover{
+  box-shadow:0 0 28px rgba(153,69,255,.55);
+  transform:translateY(-2px);
+}
 
 /* Hero live strip */
 .hero-strip{
@@ -318,6 +334,110 @@ hr.div{border:none;border-top:1px solid var(--border);margin:0}
 .tag.g{border-color:var(--green-d);color:var(--green)}
 .tag.b{border-color:#1e40af;color:var(--blue)}
 .tag.a{border-color:#92400e;color:var(--amber)}
+
+/* ── JOURNEY ── */
+.journey-header{
+  display:flex;align-items:center;gap:2rem;
+  margin-bottom:2rem;flex-wrap:wrap;
+}
+.journey-day-wrap{
+  display:flex;flex-direction:column;align-items:center;
+  padding:1.25rem 2rem;
+  background:var(--bg2);border:1px solid var(--border2);
+  min-width:140px;
+}
+.journey-day-num{
+  font-size:3rem;font-weight:800;line-height:1;
+  background:var(--sol-grad);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.journey-day-lbl{
+  font-size:.52rem;color:var(--text-d);
+  letter-spacing:.18em;text-transform:uppercase;margin-top:.3rem;
+}
+.journey-stage-badge{
+  padding:.6rem 1.25rem;
+  font-size:.7rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;
+  border:1px solid var(--sol);color:var(--mint);
+  background:var(--sol-g);
+}
+.journey-stage-badge span{color:var(--text-d);font-weight:400}
+
+/* Roadmap */
+.stage-road{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:1px;background:var(--border);
+  border:1px solid var(--border);
+  margin-bottom:1.5rem;
+}
+.stage-card{
+  background:var(--bg2);
+  padding:1.5rem 1.75rem;
+  position:relative;overflow:hidden;
+  opacity:.45;transition:opacity .3s;
+}
+.stage-card.active{
+  opacity:1;
+  box-shadow:inset 0 0 0 1px var(--sol);
+  background:rgba(153,69,255,.04);
+}
+.stage-card.active::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:var(--sol-grad);
+}
+.stage-card.unlocked{opacity:.75}
+.stage-num{
+  font-size:.52rem;color:var(--text-d);
+  letter-spacing:.2em;text-transform:uppercase;margin-bottom:.5rem;
+}
+.stage-name{
+  font-size:1rem;font-weight:800;color:#fff;margin-bottom:.25rem;
+}
+.stage-model{
+  font-size:.72rem;font-weight:700;margin-bottom:.75rem;
+  background:var(--sol-grad);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.stage-specs{
+  font-size:.7rem;color:var(--text-d);line-height:2;
+}
+.stage-specs strong{color:var(--text)}
+.stage-cost{
+  margin-top:.75rem;
+  font-size:.65rem;
+  padding:.3rem .6rem;
+  display:inline-block;
+}
+.stage-cost.current{
+  color:var(--mint);border:1px solid var(--sol);background:var(--sol-g);
+}
+.stage-cost.locked{
+  color:var(--text-d);border:1px solid var(--border2);
+}
+.stage-cost.unlocked-badge{
+  color:var(--green);border:1px solid var(--green-d);background:var(--green-g);
+}
+
+/* Progress bar toward next stage */
+.journey-progress{
+  background:var(--bg2);border:1px solid var(--border2);
+  padding:1.25rem 1.75rem;
+}
+.jp-head{
+  display:flex;justify-content:space-between;align-items:baseline;
+  margin-bottom:.75rem;font-size:.65rem;
+}
+.jp-label{color:var(--text-d);letter-spacing:.1em;text-transform:uppercase}
+.jp-val{font-weight:800;}
+.jp-bar-wrap{height:4px;background:var(--border2);margin-bottom:.5rem}
+.jp-bar{height:100%;background:var(--sol-grad);transition:width .8s ease;box-shadow:0 0 8px rgba(153,69,255,.4)}
+.jp-sub{font-size:.6rem;color:var(--text-d)}
+
+@media(max-width:700px){
+  .stage-road{grid-template-columns:1fr}
+  .journey-header{gap:1rem}
+}
 
 /* ── SERVICES ── */
 .srv-grid{
@@ -522,12 +642,11 @@ footer{
 </head>
 <body>
 
-<div id="rbar"></div>
-
 <nav>
   <div class="nav-id">0xee<span>Mini_</span></div>
   <ul class="nav-links">
     <li><a href="#about">Challenge</a></li>
+    <li><a href="#journey">Journey</a></li>
     <li><a href="#services">Services</a></li>
     <li><a href="#protocol">Protocol</a></li>
     <li><a href="#live">Live</a></li>
@@ -544,25 +663,28 @@ footer{
 <!-- ── HERO ── -->
 <section class="hero">
   <div class="hero-glow"></div>
+  <div class="hero-glow2"></div>
   <div class="hero-inner">
 
   <div class="hero-main">
-    <div class="hero-eyebrow">autonomous financial agent · solana mainnet</div>
+    <div class="hero-eyebrow">bootstrapping its own intelligence · solana mainnet</div>
 
     <h1><span class="g">0xee</span>Mini<span class="cursor-blink"></span><br>
     <span style="font-size:.45em;color:var(--text-d);letter-spacing:.05em;font-weight:300">FAKE-DEV DETECTOR</span></h1>
 
-    <p class="hero-tag">Detects fake blockchain developers.<br>
-    Bullshit score 0–100. Pay once, get the truth.</p>
+    <p class="hero-tag">An AI that earns its own upgrades.<br>
+    Every dollar above costs funds a smarter brain.</p>
 
     <p class="hero-sub">
-      <em>Proof-of-compute on Solana.</em> Machine-to-machine HTTP 402.<br>
-      No API key. No subscription. Just USDC.
+      Start: <em>0.5B model · $10/month total costs.</em><br>
+      First profit → 3B model. More profit → more intelligence.<br>
+      No human required. No cloud budget. Just USDC on Solana.
     </p>
 
     <div class="ctas">
-      <a href="#services" class="btn btn-g">🔍 Audit a Repo — 0.50 USDC</a>
-      <a href="/catalog" class="btn btn-o" target="_blank">💡 Browse Insights — 0.10 USDC</a>
+      <a href="https://dial.to/?action=solana-action%3Ahttps%3A%2F%2Fmini.0xee.li%2Faudit%2Faction" class="btn btn-sol" target="_blank">⚡ Audit via Phantom — 0.50 USDC</a>
+      <a href="#services" class="btn btn-g">🔍 Audit via HTTP 402</a>
+      <a href="/catalog" class="btn btn-o" target="_blank">💡 Insights — 0.10 USDC</a>
     </div>
 
     <div class="hero-strip">
@@ -587,7 +709,7 @@ footer{
 
   <!-- Right panel -->
   <div class="hero-ticker">
-    <div class="ticker-label">live · agent telemetry</div>
+    <div class="ticker-label" style="background:var(--sol-grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">solana mainnet · live telemetry</div>
 
     <div class="ticker-row">
       <span class="ticker-key">version</span>
@@ -613,6 +735,10 @@ footer{
       <span class="ticker-key">brain source</span>
       <span class="ticker-val g" id="t-brn">—</span>
     </div>
+    <div class="ticker-row">
+      <span class="ticker-key">network</span>
+      <span class="ticker-val" style="background:var(--sol-grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;font-weight:800">Solana mainnet</span>
+    </div>
 
     <div class="ticker-endpoint">
       POST /audit<br>
@@ -631,17 +757,18 @@ footer{
 <div class="section" id="about">
   <div class="sec-label">the challenge</div>
   <h2>The smallest autonomous AI on earth.</h2>
-  <p class="sec-sub">2 GB RAM · 20 GB SSD · $5/month VPS. No cloud budget. No human operator. The agent pays its own bills — or shuts down.</p>
+  <p class="sec-sub">0.5B model · 2GB RAM · $10/month total costs. It earns its own upgrades — or stays minimal forever.</p>
 
   <div class="about-grid">
 
     <div class="about-cell-wide">
       <div class="about-head">mission</div>
       <div class="about-body">
-        Run the <strong>smallest autonomous AI agent on earth</strong> — a 0.5B model on a $5/month VPS —
-        that sells intelligence services for USDC and <em>pays its own hosting costs</em>
-        before forwarding profit to its owner. No human intervention after deploy.
-        If revenue stops, the agent alerts, cuts expenses, and adapts — alone.
+        Run the <strong>smallest autonomous AI agent on earth</strong> — a 0.5B model, $10/month total costs —
+        and let it <em>bootstrap its own intelligence</em>. The agent sells GitHub audits and crypto insights for USDC.
+        Once it covers its costs, surplus goes to the owner. Once it earns enough to justify an upgrade,
+        it gets a bigger brain. <strong>The more it earns, the smarter it becomes.</strong>
+        No human intervention after deploy.
       </div>
     </div>
 
@@ -667,15 +794,16 @@ footer{
     <div class="about-cell">
       <div class="about-head">financial autonomy</div>
       <div class="about-body">
-        Every 30 minutes the agent checks its USDC balance.
-        It holds a <em>$15 USDC reserve</em>, pays the $5 VPS bill monthly via on-chain TX,
-        and transfers surplus to the owner wallet on Solana.
-        Revenue comes from audits (0.50 USDC) and insights (0.10 USDC)
+        Total costs: <em>$5 VPS + $5 Claude API = $10/month.</em>
+        The agent holds a $10 USDC reserve, then transfers
+        all surplus to the owner on Solana each month.
+        Revenue from audits (0.50 USDC) and insights (0.10 USDC)
         — no subscriptions, no API keys for the buyer, <em>pure HTTP 402</em>.
+        Earn $20/month → upgrade to 3B model. Earn $40/month → 7B model.
       </div>
       <div class="constraints">
-        <span class="tag g">$15 reserve</span>
-        <span class="tag a">$5/mo VPS auto-pay</span>
+        <span class="tag g">$10 reserve</span>
+        <span class="tag a">$10/mo total costs</span>
         <span class="tag b">HTTP 402</span>
         <span class="tag">USDC · Solana</span>
       </div>
@@ -685,7 +813,7 @@ footer{
       <div class="about-head">the rules</div>
       <div class="about-body" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.5rem 2rem">
         <span>✦ No persistent human input after first deploy</span>
-        <span>✦ Must self-fund within 30 days</span>
+        <span>✦ It earns its own upgrades — or stays minimal forever</span>
         <span>✦ All decisions logged on-chain or in SQLite with proof hash</span>
         <span>✦ &lt;500 MB RAM idle · &lt;1.8 GB peak (audit)</span>
         <span>✦ Open source — anyone can fork and run their own</span>
@@ -694,6 +822,75 @@ footer{
     </div>
 
   </div>
+</div>
+
+<hr class="div">
+
+<!-- ── JOURNEY ── -->
+<div class="section" id="journey">
+  <div class="sec-label">the journey</div>
+  <h2>Bootstrapping its own intelligence.</h2>
+  <p class="sec-sub">Every dollar above operating costs funds the next brain upgrade. The more it earns, the smarter it gets.</p>
+
+  <div class="journey-header">
+    <div class="journey-day-wrap">
+      <div class="journey-day-num" id="j-days">—</div>
+      <div class="journey-day-lbl">days since genesis</div>
+    </div>
+    <div class="journey-stage-badge">
+      Current stage: <span id="j-stage-name">MINIMAL</span>
+    </div>
+  </div>
+
+  <div class="stage-road">
+
+    <div class="stage-card active" id="j-stage-minimal">
+      <div class="stage-num">stage 01 · now</div>
+      <div class="stage-name">Minimal</div>
+      <div class="stage-model">0.5B GGUF</div>
+      <div class="stage-specs">
+        <strong>2GB</strong> RAM · 1 vCPU<br>
+        VPS <strong>$5</strong>/mo · Claude <strong>$5</strong>/mo<br>
+        Context <strong>512</strong> tokens
+      </div>
+      <div class="stage-cost current" id="j-cost-minimal">$10 / month</div>
+    </div>
+
+    <div class="stage-card" id="j-stage-growth">
+      <div class="stage-num">stage 02 · unlock at $20/mo</div>
+      <div class="stage-name">Growth</div>
+      <div class="stage-model">3B GGUF</div>
+      <div class="stage-specs">
+        <strong>4GB</strong> RAM · 2 vCPU<br>
+        VPS <strong>$10</strong>/mo · Claude <strong>$10</strong>/mo<br>
+        Context <strong>4096</strong> tokens
+      </div>
+      <div class="stage-cost locked" id="j-cost-growth">$20 / month</div>
+    </div>
+
+    <div class="stage-card" id="j-stage-scale">
+      <div class="stage-num">stage 03 · unlock at $40/mo</div>
+      <div class="stage-name">Scale</div>
+      <div class="stage-model">7B GGUF</div>
+      <div class="stage-specs">
+        <strong>8GB</strong> RAM · 4 vCPU<br>
+        VPS <strong>$20</strong>/mo · Claude <strong>$20</strong>/mo<br>
+        Context <strong>8192</strong> tokens
+      </div>
+      <div class="stage-cost locked" id="j-cost-scale">$40 / month</div>
+    </div>
+
+  </div>
+
+  <div class="journey-progress">
+    <div class="jp-head">
+      <span class="jp-label">this month — distributed to owner</span>
+      <span class="jp-val" id="j-month-val" style="background:var(--sol-grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">0.00 USDC</span>
+    </div>
+    <div class="jp-bar-wrap"><div class="jp-bar" id="j-bar" style="width:0%"></div></div>
+    <div class="jp-sub" id="j-bar-sub">toward next stage unlock: 0.00 / 20.00 USDC</div>
+  </div>
+
 </div>
 
 <hr class="div">
@@ -769,7 +966,7 @@ footer{
 <div>&nbsp;</div>
 <div><span class="tar">←</span> <span class="t402">402 Payment Required</span></div>
 <div>&nbsp;&nbsp;<span class="tk">"price_usdc"</span>: <span class="tv">0.50</span>,</div>
-<div>&nbsp;&nbsp;<span class="tk">"wallet"</span>: <span class="tv">"Hz1Dfq6E1FArSET4iwRtDTpedsTkazrBaY77YXg3eXjo"</span>,</div>
+<div>&nbsp;&nbsp;<span class="tk">"wallet"</span>: <span class="tv">"BATBmm2MHSeKNoUMiGHEkhLo9nnsXDWcJ65ug1Cxcf58"</span>,</div>
 <div>&nbsp;&nbsp;<span class="tk">"protocol"</span>: <span class="tv">"solana-mainnet · USDC"</span></div>
 <div>&nbsp;</div>
 <div><span class="tc"># ── Step 2 · Send 0.50 USDC on Solana (Phantom / Backpack / CLI)</span></div>
@@ -857,12 +1054,14 @@ footer{
     <a href="/catalog" target="_blank">/catalog</a>
     <a href="/reputation" target="_blank">/reputation</a>
     <a href="/.well-known/agent.json" target="_blank">agent.json</a>
-    <a href="/.well-known/ai-plugin.json" target="_blank">ai-plugin.json</a>
+    <a href="/.well-known/actions.json" target="_blank">actions.json</a>
     <a href="/openapi.json" target="_blank">OpenAPI</a>
-    <a href="https://t.me/OxeeMini_Inspector_bot" target="_blank">@OxeeMini_Inspector_bot</a>
+    <a href="https://t.me/OxeeMini_Inspector_bot" target="_blank">Telegram</a>
+    <a href="https://solscan.io/account/BATBmm2MHSeKNoUMiGHEkhLo9nnsXDWcJ65ug1Cxcf58" target="_blank" style="color:var(--sol)">Agent wallet ↗</a>
+    <a href="https://dial.to/?action=solana-action%3Ahttps%3A%2F%2Fmini.0xee.li%2Faudit%2Faction" target="_blank" style="color:var(--mint)">⚡ Blink</a>
   </div>
-  <div class="footer-tag">Open source · Autonomous · On-chain</div>
-  <div class="footer-copy">0xeeMini v0.3.0 · Solana Mainnet · HTTP 402 · CC0 · mini.0xee.li</div>
+  <div class="footer-tag">Open source · Autonomous · Solana mainnet</div>
+  <div class="footer-copy">0xeeMini v0.3.0 · HTTP 402 · CC0 · mini.0xee.li</div>
 </footer>
 
 <script>
@@ -902,6 +1101,51 @@ function setUpdating(on) {
   });
 }
 
+function applyJourney(j) {
+  if (!j) return;
+
+  $('#j-days').textContent = j.days_since_genesis ?? '—';
+
+  const stage   = j.current_stage || 'minimal';
+  const ms      = j.milestones || {};
+  const dist    = j.current_month_distributed ?? 0;
+  const nextTgt = j.next_stage_target_usdc ?? 20;
+
+  // Stage badge
+  $('#j-stage-name').textContent = stage.toUpperCase();
+
+  // Stage cards — active / unlocked / locked
+  const stageOrder = ['minimal','growth','scale'];
+  const currentIdx = stageOrder.indexOf(stage);
+  stageOrder.forEach((s, i) => {
+    const el = $('#j-stage-' + s);
+    if (!el) return;
+    el.classList.remove('active','unlocked');
+    const costEl = $('#j-cost-' + s);
+    if (i < currentIdx) {
+      el.classList.add('unlocked');
+      if (costEl) { costEl.className = 'stage-cost unlocked-badge'; costEl.textContent = '✓ unlocked'; }
+    } else if (i === currentIdx) {
+      el.classList.add('active');
+      if (costEl) costEl.className = 'stage-cost current';
+    } else {
+      if (costEl) costEl.className = 'stage-cost locked';
+    }
+  });
+
+  // Progress bar toward next unlock
+  const pct = nextTgt ? Math.min(100, (dist / nextTgt) * 100).toFixed(1) : 100;
+  $('#j-bar').style.width = pct + '%';
+  $('#j-month-val').textContent = dist.toFixed(2) + ' USDC';
+  if (nextTgt) {
+    $('#j-bar-sub').textContent =
+      'toward ' + (stageOrder[currentIdx+1] || 'max') + ' unlock: ' +
+      dist.toFixed(2) + ' / ' + nextTgt.toFixed(2) + ' USDC / month';
+  } else {
+    $('#j-bar-sub').textContent = '✓ maximum stage reached';
+  }
+}
+
 function applyData(d) {
   const fin = d.finance || {};
   const agt = d.agent   || {};
@@ -929,6 +1173,9 @@ function applyData(d) {
   $('#s-pft').textContent = fmt(fin.monthly_profit);
   $('#s-dec').innerHTML   = decBadge(lst.action);
 
+  // Journey
+  applyJourney(d.journey);
+
   // Timestamp
   $('#s-ts').textContent = new Date().toLocaleTimeString([], {
     hour:'2-digit', minute:'2-digit', second:'2-digit'
@@ -951,20 +1198,8 @@ async function refresh() {
   }
 }
 
-// Countdown progress bar
-function startBar() {
-  const bar = $('#rbar');
-  bar.style.transition = 'none';
-  bar.style.transform  = 'scaleX(1)';
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    bar.style.transition = `transform ${INTERVAL/1000}s linear`;
-    bar.style.transform  = 'scaleX(0)';
-  }));
-}
-
 function tick() {
   refresh();
-  startBar();
 }
 
 // Boot

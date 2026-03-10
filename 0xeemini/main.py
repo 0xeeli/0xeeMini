@@ -38,6 +38,11 @@ _CYCLE_COUNT = 0
 _START_TIME = datetime.now(timezone.utc)
 _SHUTDOWN_EVENT = asyncio.Event()
 
+# Cache balance USDC — 1 appel RPC toutes les 5min au lieu de chaque 60s
+_BALANCE_CACHE_TTL = 300  # secondes
+_cached_balance: float = 0.0
+_cached_balance_at: datetime | None = None
+
 
 def _banner() -> None:
     print(f"""
@@ -65,11 +70,25 @@ def _start_api_server() -> None:
     logger.info(f"HustleAPI démarrée sur {CFG['api_host']}:{CFG['api_port']}")
 
 
+async def _get_balance_cached(profit_engine: ProfitEngine) -> float:
+    """Retourne le solde USDC — RPC appelé max 1x/5min, sinon cache mémoire."""
+    global _cached_balance, _cached_balance_at
+    now = datetime.now(timezone.utc)
+    if (
+        _cached_balance_at is None
+        or (now - _cached_balance_at).total_seconds() >= _BALANCE_CACHE_TTL
+    ):
+        _cached_balance = await profit_engine.get_usdc_balance()
+        _cached_balance_at = now
+        logger.debug(f"Balance RPC refresh : {_cached_balance:.4f} USDC")
+    return _cached_balance
+
+
 async def _collect_runtime_state(profit_engine: ProfitEngine) -> dict:
     """Collecte l'état runtime pour le cycle Constitution."""
     global _CYCLE_COUNT
 
-    balance_usdc = await profit_engine.get_usdc_balance()
+    balance_usdc = await _get_balance_cached(profit_engine)
     ram = psutil.virtual_memory()
     uptime = int((datetime.now(timezone.utc) - _START_TIME).total_seconds())
 
@@ -145,6 +164,9 @@ async def _route_decision(decision: dict, profit_engine: ProfitEngine, hustle_en
             set_state(f"vps_paid_{month_key}", "true")
             logger.info(f"VPS marqué payé pour {month_key}")
         await profit_engine.execute_transfer(details)
+        # Invalider le cache balance après un transfert
+        global _cached_balance_at
+        _cached_balance_at = None
 
     elif action == "RUN_HUSTLE":
         log_event("HUSTLE_TRIGGERED", {"details": details})

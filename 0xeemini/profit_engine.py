@@ -30,10 +30,8 @@ INFOMANIAK_PLANS = {
 # USDC mint address (mainnet)
 USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 
-# Profit split
-PROFIT_OWNER_RATIO = 0.80
-PROFIT_RESERVE_RATIO = 0.20
-PROFIT_MIN_TRANSFER_USDC = 5.0
+# Profit — tout le surplus au-delà de la réserve part chez le owner
+PROFIT_MIN_TRANSFER_USDC = 0.50  # pas de dust
 
 
 class ProfitEngine:
@@ -460,35 +458,28 @@ class ProfitEngine:
             result["vps_paid"] = True
             logger.info(f"ProfitEngine — VPS déjà payé pour {month_key}")
 
-        # 2. Calculer et transférer profit
+        # 2. Transférer TOUT le surplus au-delà de la réserve vers le owner
         balance = await self.get_usdc_balance()
         reserve = self.cfg["reserve_minimum"]
+        surplus = round(balance - reserve, 6)
 
-        if balance > reserve:
-            available_profit = balance - reserve
-            transfer_amount = available_profit * PROFIT_OWNER_RATIO
-
-            if transfer_amount >= PROFIT_MIN_TRANSFER_USDC:
-                profit_idem = f"profit_transfer_{month_key}"
-                try:
-                    await self.execute_transfer({
-                        "tx_type": "PROFIT_TRANSFER",
-                        "amount_usdc": round(transfer_amount, 6),
-                        "to_wallet": self.cfg["owner_address"],
-                        "memo": f"0xeeMini profit {month_key} ({PROFIT_OWNER_RATIO*100:.0f}%)",
-                        "idempotency_key": profit_idem,
-                    })
-                    result["profit_transferred"] = transfer_amount
-                    set_state(f"profit_transferred_{month_key}", str(transfer_amount))
-                    logger.success(
-                        f"ProfitEngine — {transfer_amount:.4f} USDC transférés vers owner"
-                    )
-                except Exception as exc:
-                    logger.error(f"ProfitEngine — transfert profit échoué : {exc}")
-            else:
-                logger.info(
-                    f"ProfitEngine — profit {transfer_amount:.4f} USDC < seuil {PROFIT_MIN_TRANSFER_USDC} USDC"
-                )
+        if surplus >= PROFIT_MIN_TRANSFER_USDC:
+            profit_idem = f"profit_transfer_{month_key}"
+            try:
+                await self.execute_transfer({
+                    "tx_type": "PROFIT_DISTRIBUTION",
+                    "amount_usdc": surplus,
+                    "to_wallet": self.cfg["owner_address"],
+                    "memo": f"0xeeMini surplus {month_key}",
+                    "idempotency_key": profit_idem,
+                })
+                result["profit_transferred"] = surplus
+                set_state(f"profit_transferred_{month_key}", str(surplus))
+                logger.success(f"ProfitEngine — {surplus:.4f} USDC surplus transférés vers owner")
+            except Exception as exc:
+                logger.error(f"ProfitEngine — transfert surplus échoué : {exc}")
+        else:
+            logger.info(f"ProfitEngine — surplus {surplus:.4f} USDC < seuil {PROFIT_MIN_TRANSFER_USDC} USDC")
 
         log_event("MONTHLY_SETTLEMENT", result)
         return result
