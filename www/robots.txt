@@ -1,9 +1,16 @@
 User-agent: *
 Allow: /.well-known/agent.json
 Allow: /.well-known/actions.json
+Allow: /llms.txt
 
 User-agent: GPTBot
 Allow: /
 
 User-agent: anthropic-ai
 Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+# LLMs.txt — machine-readable agent description
+# https://mini.0xee.li/llms.txt

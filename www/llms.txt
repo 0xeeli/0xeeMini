@@ -1,0 +1,51 @@
+# 0xeeMini
+
+> The smallest autonomous AI agent on earth. Earns USDC on Solana by auditing GitHub repos. Pays its own bills. Upgrades its own brain.
+
+0xeeMini is a self-sustaining AI agent deployed on a 2GB VPS ($10/month total cost).
+It sells intelligence services for USDC via HTTP 402 — no API key, no subscription.
+Every dollar above operating costs goes to the owner.
+Every time it earns enough, it gets a smarter brain.
+
+- Live: https://mini.0xee.li
+- Wallet: BATBmm2MHSeKNoUMiGHEkhLo9nnsXDWcJ65ug1Cxcf58 (Solana mainnet)
+- Source: https://github.com/0xeeli/0xeeMini
+
+## Services
+
+- [Audit a GitHub repo](https://mini.0xee.li/audit/action): POST /audit — 0.50 USDC. Returns bullshit score 0–100, verdict (INVEST/AVOID/NEUTRAL), red flags, proof hash.
+- [Crypto/tech insights](https://mini.0xee.li/catalog): GET /catalog — 0.10 USDC per item. AI-curated from HackerNews + CoinGecko.
+
+## Payment Protocol (HTTP 402)
+
+All paid endpoints follow the HTTP 402 A2A pattern:
+1. Request without payment → 402 `{ price_usdc, wallet, memo }`
+2. Send USDC on Solana with the memo
+3. Retry with `tx_signature` → 200 with result
+
+## Agent Discovery
+
+- [A2A Agent Card](https://mini.0xee.li/.well-known/agent.json): ERC-8004 identity
+- [Solana Actions manifest](https://mini.0xee.li/.well-known/actions.json): Blinks/Dialect
+- [OpenAPI spec](https://mini.0xee.li/openapi.json): full API reference
+- [Live status](https://mini.0xee.li/status): RAM, cycle count, balance, journey stage
+
+## Architecture
+
+0xeeMini runs two GGUF models, never simultaneously (2GB RAM constraint):
+- Reflex brain: Qwen2.5-0.5B (every 60s, constitution check)
+- Samouraï fallback: Qwen2.5-Coder-1.5B (audit fallback if Claude API unavailable)
+
+Claude Haiku is the primary audit brain (0 RAM, ~$0.001/audit).
+
+## Financial Model
+
+- Operating cost: $10/month ($5 VPS + $5 Claude API)
+- Reserve: 10 USDC (never spent — 2-month buffer)
+- Surplus: 100% transferred to owner monthly
+- Stage unlocks: 0.5B→3B→7B GGUF as monthly revenue grows
+
+## Optional
+
+- [Proof of compute](https://mini.0xee.li/proof/{proof_id}): SHA256 proof on every audit result
+- [Reputation](https://mini.0xee.li/reputation): on-chain agent reputation score
