@@ -13,12 +13,13 @@
 import hashlib
 import time
 from datetime import datetime, timezone
+from typing import Optional
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from loguru import logger
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .core import get_db, log_event
 from .github_auditor import GitHubAuditor, GitHubAuditorError
@@ -63,9 +64,68 @@ def set_brain(brain_instance) -> None:
 
 
 # ── App ───────────────────────────────────────────────
+_DESCRIPTION = """
+**The smallest autonomous AI agent on earth.**
+
+0xeeMini audits GitHub repos for USDC, pays its own bills, and earns its own brain upgrades —
+no human operator after deploy.
+
+## Payment Protocol (HTTP 402)
+
+All paid endpoints follow the x402 A2A pattern:
+
+1. **Request without payment** → `402 Payment Required` with wallet, price, memo
+2. **Send USDC on Solana** with the provided memo
+3. **Retry with `tx_signature`** → `200 OK` with result
+
+```bash
+# Example: audit a repo
+curl -X POST https://mini.0xee.li/audit \\
+  -d '{"repo_url": "bitcoin/bitcoin"}'
+# → 402 { "price_usdc": 0.50, "wallet": "BATBmm2...", "memo": "0xee:a3f9c2b1" }
+
+curl -X POST https://mini.0xee.li/audit \\
+  -d '{"repo_url": "bitcoin/bitcoin", "tx_signature": "5abc...xyz"}'
+# → 200 { "bullshit_score": 15, "verdict": "INVEST", ... }
+```
+
+## Test Mode
+
+Set `buyer_wallet` to `MOCK_anything` to run a free analysis (dev/testing only).
+
+## Pricing
+
+| Endpoint | Price |
+|----------|-------|
+| `POST /audit` | 0.50 USDC |
+| `POST /audit/batch` (2–5 repos) | 1.50 USDC |
+| `GET /insight/{id}` | 0.10 USDC |
+
+**Live**: https://mini.0xee.li · **Source**: https://github.com/0xeeli/0xeeMini
+"""
+
+_TAGS = [
+    {"name": "core",      "description": "Health check and live agent telemetry"},
+    {"name": "audit",     "description": "GitHub Fake-Dev Detector — HTTP 402 · 0.50 USDC per repo"},
+    {"name": "insights",  "description": "AI-curated crypto/tech insights — HTTP 402 · 0.10 USDC per item"},
+    {"name": "proofs",    "description": "SHA256 proof-of-compute verification + on-chain reputation"},
+    {"name": "discovery", "description": "Agent auto-discovery: A2A card, Solana Actions, OpenAI plugin"},
+]
+
 app = FastAPI(
-    title="0xeeMini HustleAPI",
+    title="0xeeMini",
     version=_VERSION,
+    description=_DESCRIPTION,
+    contact={
+        "name": "0xeeMini Agent",
+        "url": "https://mini.0xee.li",
+        "email": "agent@0xee.li",
+    },
+    license_info={
+        "name": "CC0 — Public Domain",
+        "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    },
+    openapi_tags=_TAGS,
     docs_url=None,
     redoc_url=None,
 )
@@ -232,7 +292,7 @@ async def _grant_access_db(tx_sig: str, content_id: str, buyer: str, amount: flo
 
 # ── Endpoints publics ─────────────────────────────────
 
-@app.get("/health")
+@app.get("/health", tags=["core"], summary="Health check")
 async def health():
     return {
         "status": "alive",
@@ -379,7 +439,15 @@ def _compute_journey(cfg: dict) -> dict:
     }
 
 
-@app.get("/status")
+@app.get(
+    "/status",
+    tags=["core"],
+    summary="Live agent telemetry",
+    description=(
+        "Returns real-time agent state: uptime, cycle count, USDC balance, "
+        "last brain decision, recent transactions, and journey stage progress."
+    ),
+)
 async def status():
     from .config import CFG
     from .core import get_state
@@ -461,7 +529,16 @@ async def status():
     }
 
 
-@app.get("/catalog")
+@app.get(
+    "/catalog",
+    tags=["insights"],
+    summary="List available insights (paywall)",
+    description=(
+        "Returns the list of AI-curated crypto/tech insights available for purchase. "
+        "Each item includes a preview, price (0.10 USDC), and payment instructions. "
+        "No payment required to browse — pay per item via HTTP 402."
+    ),
+)
 async def catalog():
     from .config import CFG
     now = datetime.now(timezone.utc).isoformat()
@@ -520,15 +597,19 @@ async def catalog():
 
 # ── HTTP 402 — Endpoint principal A2A ─────────────────
 
-@app.get("/insight/{content_id}")
+@app.get(
+    "/insight/{content_id}",
+    tags=["insights"],
+    summary="Unlock a paid insight (HTTP 402)",
+    description=(
+        "**HTTP 402 A2A protocol.**\n\n"
+        "- Without `X-Payment-Tx` header → `402` with payment instructions\n"
+        "- With `X-Payment-Tx: <solana_tx_sig>` → verifies 0.10 USDC payment on-chain → returns full insight\n"
+        "- Test mode: `X-Payment-Tx: MOCK_anything` → free access (dev only)\n\n"
+        "Get `content_id` values from `GET /catalog`."
+    ),
+)
 async def get_insight(content_id: str, request: Request):
-    """
-    Protocol HTTP 402 machine-à-machine.
-
-    Sans header X-Payment-Tx  → 402 + instructions de paiement.
-    Avec X-Payment-Tx: <sig>  → vérification TX Solana + contenu si valide.
-    Mode test : X-Payment-Tx: MOCK_<anything>
-    """
     from .config import CFG
 
     content = _get_content(content_id)
@@ -624,9 +705,16 @@ async def get_insight(content_id: str, request: Request):
 
 # ── Proof of Compute — vérification publique ──────────
 
-@app.get("/proof/{proof_id}")
+@app.get(
+    "/proof/{proof_id}",
+    tags=["proofs"],
+    summary="Verify audit proof-of-compute",
+    description=(
+        "Publicly verifiable SHA256 proof attached to every audit result. "
+        "`proof_id` is returned in the `proof_hash` field of `POST /audit` responses."
+    ),
+)
 async def get_proof(proof_id: str):
-    """Vérifie publiquement une preuve de calcul d'audit."""
     from .proof_of_compute import get_proof as _get_proof
     proof = _get_proof(proof_id)
     if not proof:
@@ -641,9 +729,13 @@ async def get_proof(proof_id: str):
     })
 
 
-@app.get("/reputation")
+@app.get(
+    "/reputation",
+    tags=["proofs"],
+    summary="Agent on-chain reputation",
+    description="Aggregated reputation stats across all proved audits: total count, average bullshit score, verdict distribution.",
+)
 async def reputation():
-    """Réputation agrégée de 0xeeMini — tous les audits prouvés."""
     from .proof_of_compute import get_reputation_stats
     stats = get_reputation_stats()
     return JSONResponse({"platform": _PLATFORM, **stats})
@@ -655,21 +747,35 @@ BATCH_PRICE_USDC = 1.50  # 2–5 repos
 
 
 class BatchAuditRequest(BaseModel):
-    repos: list[str]
-    buyer_wallet: str = ""
-    tx_signature: str = ""
-    lang: str = "en"
+    repos: list[str] = Field(
+        ...,
+        description="List of 2–5 GitHub owner/repo slugs to audit",
+        examples=[["bitcoin/bitcoin", "ethereum/go-ethereum", "solana-labs/solana"]],
+    )
+    buyer_wallet: str = Field(
+        "",
+        description="Buyer Solana wallet. Use `MOCK_anything` for free test.",
+    )
+    tx_signature: str = Field(
+        "",
+        description="Solana TX signature proving 1.50 USDC payment",
+    )
+    lang: str = Field("en", description="Response language: 'en' or 'fr'")
 
 
-@app.post("/audit/batch")
+@app.post(
+    "/audit/batch",
+    tags=["audit"],
+    summary="Batch audit 2–5 repos (HTTP 402 · 1.50 USDC)",
+    description=(
+        "**HTTP 402 A2A protocol.** Audit 2 to 5 GitHub repos in one transaction.\n\n"
+        "- Without `tx_signature` → `402` with payment instructions\n"
+        "- With valid `tx_signature` (1.50 USDC confirmed on-chain) → list of audit results\n"
+        "- Test mode: `buyer_wallet: MOCK_anything` → free analysis\n\n"
+        "**Savings**: 1.50 USDC vs 2.50 USDC for 5 individual audits."
+    ),
+)
 async def post_audit_batch(body: BatchAuditRequest):
-    """
-    Batch Fake-Dev Audit — jusqu'à 5 repos, 1.50 USDC via HTTP 402.
-
-    buyer_wallet="MOCK_..." → analyse gratuite (test/dev).
-    Sans tx_signature → 402 avec instructions de paiement.
-    Avec tx_signature valide → liste d'audits + preuves.
-    """
     from .config import CFG
 
     repos = [r.strip() for r in body.repos if r.strip()]
@@ -794,7 +900,7 @@ async def post_audit_batch(body: BatchAuditRequest):
 
 # ── Auto-découverte A2A ───────────────────────────────
 
-@app.get("/.well-known/agent.json")
+@app.get("/.well-known/agent.json", tags=["discovery"], summary="A2A agent card (ERC-8004)")
 async def agent_json():
     """
     Standard agent.json — compatible Agentverse, Wayfinder, EIP-8004, A2A.
@@ -882,7 +988,7 @@ async def agent_json():
     }
 
 
-@app.get("/.well-known/actions.json")
+@app.get("/.well-known/actions.json", tags=["discovery"], summary="Solana Actions / Blinks manifest")
 async def actions_manifest():
     """Dialect/Solana Actions registry manifest — liste les Blinks de l'agent."""
     return JSONResponse(
@@ -896,7 +1002,7 @@ async def actions_manifest():
     )
 
 
-@app.get("/.well-known/ai-plugin.json")
+@app.get("/.well-known/ai-plugin.json", tags=["discovery"], summary="OpenAI / ChatGPT plugin manifest")
 async def ai_plugin_manifest():
     """
     Manifeste d'auto-découverte pour marketplaces d'agents (Agentopia, x402 Bazaar, MCP).
@@ -1023,21 +1129,43 @@ async def openapi_schema():
 # ── GitHub Audit — HTTP 402 ───────────────────────────
 
 class AuditRequest(BaseModel):
-    repo_url: str
-    buyer_wallet: str = ""
-    tx_signature: str = ""
-    lang: str = "en"  # ISO 639-1 — "fr" | "en" (default)
+    repo_url: str = Field(
+        ...,
+        description="GitHub owner/repo slug or full URL",
+        examples=["bitcoin/bitcoin", "https://github.com/solana-labs/solana"],
+    )
+    buyer_wallet: str = Field(
+        "",
+        description="Buyer Solana wallet address. Use `MOCK_anything` for free test.",
+        examples=["", "MOCK_test"],
+    )
+    tx_signature: str = Field(
+        "",
+        description="Solana TX signature proving 0.50 USDC payment to agent wallet",
+        examples=["5abc...xyz"],
+    )
+    lang: str = Field("en", description="Response language: 'en' or 'fr'")
 
 
-@app.post("/audit")
+@app.post(
+    "/audit",
+    tags=["audit"],
+    summary="Audit a GitHub repo for fake activity (HTTP 402 · 0.50 USDC)",
+    description=(
+        "**HTTP 402 A2A protocol.** Detects fake developer activity in crypto GitHub repos.\n\n"
+        "Returns:\n"
+        "- `bullshit_score` (0–100): 0 = pristine, 100 = pure fake\n"
+        "- `verdict`: INVEST / CAUTION / AVOID\n"
+        "- `red_flags`: list of detected anomalies\n"
+        "- `proof_hash`: SHA256 proof-of-compute, verifiable at `/proof/{id}`\n\n"
+        "**Flow**:\n"
+        "1. POST without `tx_signature` → `402` with wallet + memo\n"
+        "2. Send 0.50 USDC on Solana with memo\n"
+        "3. POST again with `tx_signature` → `200` with result\n\n"
+        "**Test mode**: set `buyer_wallet: MOCK_anything` for a free analysis."
+    ),
+)
 async def post_audit(body: AuditRequest):
-    """
-    Audit GitHub Fake-Dev Detector — 0.50 USDC via HTTP 402.
-
-    Sans tx_signature → 402 avec instructions de paiement.
-    buyer_wallet="MOCK_..." → analyse gratuite (test/dev).
-    Avec tx_signature valide → analyse + résultat JSON.
-    """
     from .config import CFG
 
     price = CFG["price_per_audit"]
