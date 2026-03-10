@@ -12,11 +12,11 @@ from datetime import datetime
 from pathlib import Path
 
 # ── Configuration VPS ─────────────────────────────────
-VPS_USER = "debian"
-VPS_HOST = "193.108.54.70"
-VPS_PATH = "/home/debian/0xeeMini"
-VPS_WEB_PATH = "/home/debian/vhosts/mini.0xee.li/www"
-LOCAL_PATH = "/home/pankso/Dev/0xeeMini"
+VPS_USER = os.getenv("OXEEMINI_VPS_USER", "debian")
+VPS_HOST = os.getenv("OXEEMINI_VPS_HOST", "193.108.54.70")
+VPS_PATH = os.getenv("OXEEMINI_VPS_PATH", "/home/debian/0xeeMini")
+VPS_WEB_PATH = os.getenv("OXEEMINI_VPS_WEB_PATH", "/home/debian/vhosts/mini.0xee.li/www")
+LOCAL_PATH = str(Path(__file__).parent.resolve())
 SERVICE_NAME = "0xeemini"
 KEEP_BACKUPS = 10
 

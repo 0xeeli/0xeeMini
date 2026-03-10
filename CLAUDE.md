@@ -56,15 +56,49 @@ sans troncature, avec les patches complets → scores plus précis.
 
 ```
 0xeemini/
-├── main.py           — point d'entrée, APScheduler (60s/5min/30min/mensuel)
-├── brain_link.py     — orchestration cerveaux (réflexe GGUF + Claude + Samouraï)
-├── constitution.py   — prompts Constitution + réflexe
-├── config.py         — chargement ~/.config/0xeeMini/.env
-├── core.py           — SQLite, BootGuardian, logging
-├── profit_engine.py  — Solana/USDC, transferts, settlement mensuel
-├── hustle_engine.py  — génération insights HN/CoinGecko (GGUF > Claude)
-├── hustle_api.py     — FastAPI : /audit, /catalog, /buy, /health, /status
-└── github_auditor.py — fetch commits GitHub + calcul métriques
+├── main.py             — point d'entrée, APScheduler (60s/5min/30min/mensuel)
+├── brain_link.py       — orchestration cerveaux (réflexe GGUF + Claude + Samouraï)
+├── constitution.py     — prompts Constitution + réflexe
+├── config.py           — chargement ~/.config/0xeeMini/.env
+├── core.py             — SQLite, BootGuardian, logging
+├── profit_engine.py    — Solana/USDC, transferts, settlement mensuel
+├── hustle_engine.py    — génération insights HN/CoinGecko (GGUF > Claude)
+├── hustle_api.py       — FastAPI : tous les endpoints HTTP
+├── github_auditor.py   — fetch commits GitHub + calcul métriques
+├── proof_of_compute.py — SHA256 proof-of-compute sur chaque résultat d'audit
+└── telegram_bot.py     — bot Telegram pour alertes owner + commandes admin
+```
+
+**Fichiers config :**
+```
+config/
+└── agent.md   — YAML frontmatter ERC-8004 (A2A agent card) + documentation
+```
+
+## Endpoints HTTP (hustle_api.py)
+
+```
+GET  /health                    — healthcheck
+GET  /status                    — état agent (RAM, cycle, wallet, etc.)
+GET  /catalog                   — liste insights paywall (0.10 USDC/item)
+GET  /insight/{content_id}      — insight débloqué après paiement 402
+GET  /proof/{proof_id}          — proof-of-compute SHA256 d'un audit
+GET  /reputation                — réputation on-chain de l'agent
+POST /audit                     — audit GitHub (0.50 USDC) — HTTP 402 flow
+POST /audit/batch               — audit batch 5 repos (1.50 USDC)
+GET  /audit/cache/{repo_slug}   — résultat mis en cache
+POST /access                    — accès générique après paiement
+GET  /.well-known/agent.json    — identité A2A (ERC-8004 / agent card)
+GET  /.well-known/actions.json  — manifest Solana Actions (Dialect/Blinks)
+GET  /.well-known/ai-plugin.json — compat ChatGPT plugin manifest
+GET  /openapi.json              — spec OpenAPI
+
+# Solana Actions (Blinks)
+OPTIONS /audit/action           — CORS preflight
+GET     /audit/action           — metadata Blink (titre, description, input)
+POST    /audit/action           — retourne unsigned tx USDC (wallet signe côté client)
+OPTIONS /catalog/action         — CORS preflight
+GET     /catalog/action         — metadata Blink catalog
 ```
 
 ## Protocole HTTP 402 A2A
@@ -73,8 +107,47 @@ sans troncature, avec les patches complets → scores plus précis.
 POST /audit
   → 402 { error: "payment_required", price_usdc: 0.50, memo: "0xee:{content_id}" }
   → buyer paie on-chain, renvoie avec X-Payment-Tx header (ou tx_signature body)
-  → 200 { bullshit_score, verdict, recommendation, ... }
+  → 200 { bullshit_score, verdict, recommendation, sha256_proof, ... }
 ```
+
+## Solana Actions (Blinks)
+
+Implémenté pour Dialect / dial.to. Flow Blink :
+```
+GET  /audit/action              → métadonnées (titre, label, champ repo_url)
+POST /audit/action              → { account: "<pubkey>" } → { transaction: "<base64 unsigned tx>" }
+                                   Le wallet de l'user signe et broadcast côté client.
+```
+
+Validation Dialect : https://dial.to/developer?url=https://mini.0xee.li/audit/action&cluster=mainnet
+
+**Important — CORS pour Blinks :** lighttpd gère **tout** le CORS (pas FastAPI).
+`CORSMiddleware` a été retiré de FastAPI pour éviter les headers en double.
+Config à maintenir dans `/etc/lighttpd/vhosts.conf` sur le VPS (non versionné) :
+```
+setenv.add-response-header = (
+    "Access-Control-Allow-Origin"   => "*",
+    "Access-Control-Allow-Methods"  => "GET, POST, PUT, OPTIONS",
+    "Access-Control-Allow-Headers"  => "Content-Type, Authorization, Content-Encoding, Accept-Encoding, x-action-version, x-blockchain-ids",
+    "X-Action-Version"              => "2.1.3",
+    "X-Blockchain-Ids"              => "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+)
+```
+Ce bloc doit être **directement dans `$HTTP["host"]`**, pas dans un sous-bloc `$HTTP["url"]`
+(les `setenv` imbriqués ne s'appliquent pas aux réponses proxy sous lighttpd).
+
+## GGUF False-Positive ABORT — Gardes
+
+Le modèle 0.5B peut halluciner `EXECUTE_TRANSFER` ou `ABORT` sans justification.
+Trois gardes dans `brain_link.py` + `constitution.py` :
+
+1. **Fast-path bloqué si reflex=ABORT** : si le GGUF renvoie `ABORT`, on bypass
+   le fast-path et Claude doit confirmer avant toute action critique.
+2. **`_normalize_reflex_response()` — EXECUTE_TRANSFER → WAIT** : le GGUF ne
+   connaît pas les adresses wallet → tout `EXECUTE_TRANSFER` du réflexe est
+   converti en `WAIT` (log debug).
+3. **`_normalize_reflex_response()` — ABORT → ALERT_OWNER** : si balance ≥ réserve,
+   un `ABORT` du GGUF est converti en `ALERT_OWNER` (log warning) — faux positif.
 
 ## Variables d'environnement clés
 
