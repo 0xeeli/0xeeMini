@@ -10,640 +10,720 @@
 <meta property="og:image" content="https://mini.0xee.li/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg:       #050508;
-  --bg2:      #080810;
-  --bg3:      #0c0c16;
-  --green:    #00ff88;
-  --green-d:  #00c060;
-  --green-g:  rgba(0,255,136,.12);
-  --blue:     #3b82f6;
-  --amber:    #f59e0b;
-  --red:      #ef4444;
-  --text:     #a8b4c8;
-  --text-d:   #3a4455;
-  --border:   #131820;
-  --border2:  #1e2535;
-  --mono:     'JetBrains Mono', monospace;
-  /* Solana */
-  --sol:      #9945FF;
-  --mint:     #14F195;
-  --sol-g:    rgba(153,69,255,.10);
-  --sol-grad: linear-gradient(90deg, #9945FF, #14F195);
+  --bg:        #0D0B14;
+  --surface:   #13111C;
+  --surface2:  #1A1727;
+  --border:    #1E1B2E;
+  --border2:   #2A2640;
+  --sol:       #9945FF;
+  --mint:      #14F195;
+  --sol-dim:   rgba(153,69,255,.12);
+  --mint-dim:  rgba(20,241,149,.08);
+  --grad:      linear-gradient(135deg, #9945FF, #14F195);
+  --grad-90:   linear-gradient(90deg, #9945FF, #14F195);
+  --text:      #C4BFDA;
+  --text-mute: #6B6585;
+  --white:     #EEE9FF;
+  --blue:      #3B82F6;
+  --amber:     #F59E0B;
+  --red:       #EF4444;
+  --green:     #14F195;
+  --font-head: 'Syne', sans-serif;
+  --font-body: 'DM Sans', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
 }
 
-*{margin:0;padding:0;box-sizing:border-box}
-html{scroll-behavior:smooth}
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box }
+html { scroll-behavior:smooth; font-size:16px }
 
-html{ font-size:17px }
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
 
-body{
-  font-family:var(--mono);
-  background:var(--bg);
-  color:var(--text);
-  min-height:100vh;
-  overflow-x:hidden;
-  cursor:crosshair;
+/* ── AMBIENT GLOWS ── */
+.glow-a {
+  position:fixed; top:-120px; left:-80px;
+  width:700px; height:600px;
+  background: radial-gradient(ellipse, rgba(153,69,255,.07) 0%, transparent 65%);
+  pointer-events:none; z-index:0;
+}
+.glow-b {
+  position:fixed; bottom:-100px; right:-60px;
+  width:500px; height:500px;
+  background: radial-gradient(ellipse, rgba(20,241,149,.05) 0%, transparent 65%);
+  pointer-events:none; z-index:0;
 }
 
 /* ── NAV ── */
-nav{
-  position:fixed;top:0;left:0;right:0;z-index:100;
-  height:44px;
-  display:flex;align-items:center;justify-content:space-between;
-  padding:0 1.5rem;
-  background:rgba(5,5,8,.96);
-  border-bottom:1px solid var(--border);
-  backdrop-filter:blur(12px);
-  -webkit-backdrop-filter:blur(12px);
+nav {
+  position: fixed; top:0; left:0; right:0; z-index:100;
+  height: 52px;
+  display: flex; align-items:center; justify-content:space-between;
+  padding: 0 2rem;
+  background: rgba(13,11,20,.88);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
 }
-.nav-id{
-  font-size:.75rem;font-weight:800;
-  color:var(--green);letter-spacing:.08em;
+.nav-logo {
+  font-family: var(--font-head);
+  font-size: .95rem; font-weight: 800;
+  background: var(--grad);
+  -webkit-background-clip: text; -webkit-text-fill-color:transparent; background-clip:text;
+  letter-spacing: -.01em;
 }
-.nav-id span{color:var(--text-d)}
-.nav-links{
-  display:flex;gap:1.25rem;list-style:none;
+.nav-links {
+  display: flex; gap:1.75rem; list-style:none;
 }
-.nav-links a{
-  font-size:.65rem;color:var(--text-d);
-  text-decoration:none;letter-spacing:.08em;
-  transition:color .15s;
+.nav-links a {
+  font-family: var(--font-body);
+  font-size: .82rem; font-weight: 500;
+  color: var(--text-mute);
+  text-decoration: none;
+  transition: color .15s;
+  letter-spacing: .01em;
 }
-.nav-links a:hover{color:var(--green)}
-.nav-right{display:flex;align-items:center;gap:.75rem}
-.dot{
-  width:6px;height:6px;border-radius:50%;
-  background:var(--green);
-  box-shadow:0 0 6px var(--green);
-  animation:pulse 2s ease-in-out infinite;
+.nav-links a:hover { color: var(--white) }
+.nav-right { display:flex; align-items:center; gap:.75rem }
+.dot {
+  width:7px; height:7px; border-radius:50%;
+  background: var(--mint);
+  box-shadow: 0 0 8px rgba(20,241,149,.6);
+  animation: pulse 2.5s ease-in-out infinite;
 }
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
-.nav-status{font-size:.6rem;color:var(--green);letter-spacing:.15em}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.25} }
+.nav-status {
+  font-family: var(--font-mono);
+  font-size: .65rem; font-weight:600;
+  color: var(--mint);
+  letter-spacing: .12em;
+}
+.nav-cta {
+  display: inline-flex; align-items:center; gap:.4rem;
+  padding: .38rem .9rem;
+  font-family: var(--font-body); font-size:.8rem; font-weight:600;
+  background: var(--sol-dim); color: var(--white);
+  border: 1px solid rgba(153,69,255,.35);
+  text-decoration: none; border-radius:6px;
+  transition: all .2s;
+  letter-spacing: .01em;
+}
+.nav-cta:hover {
+  background: rgba(153,69,255,.22);
+  border-color: var(--sol);
+  box-shadow: 0 0 16px rgba(153,69,255,.25);
+}
 
 /* ── HERO ── */
-.hero{
-  min-height:100vh;
-  padding:5rem 1.5rem 3rem;
-  position:relative;
-  overflow:hidden;
-  display:flex;
-  align-items:stretch;
+.hero {
+  min-height: 100vh;
+  padding: 7rem 2rem 4rem;
+  position: relative;
+  display: flex; align-items: center;
+  overflow: hidden;
 }
-.hero-inner{
-  width:100%;
-  max-width:960px;
-  margin:0 auto;
-  display:grid;
-  grid-template-columns:1fr 360px;
-  grid-template-rows:1fr auto;
-  gap:0;
-  position:relative;
-  z-index:2;
+.hero-inner {
+  width: 100%; max-width: 1040px; margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 4rem;
+  position: relative; z-index: 2;
+}
+.hero-main { display:flex; flex-direction:column; justify-content:center }
+
+.hero-eyebrow {
+  display: inline-flex; align-items:center; gap:.5rem;
+  font-family: var(--font-body);
+  font-size: .78rem; font-weight:500;
+  color: var(--text-mute);
+  letter-spacing: .04em;
+  margin-bottom: 1.75rem;
+  opacity:0; animation: fadeUp .5s .1s forwards;
+}
+.eyebrow-dot {
+  width:5px; height:5px; border-radius:50%;
+  background: var(--mint);
+  box-shadow: 0 0 6px rgba(20,241,149,.5);
 }
 
-/* Grid background */
-.hero::after{
-  content:'';position:absolute;inset:0;
-  background-image:
-    linear-gradient(var(--border) 1px,transparent 1px),
-    linear-gradient(90deg,var(--border) 1px,transparent 1px);
-  background-size:48px 48px;
-  opacity:.5;pointer-events:none;z-index:0;
+h1 {
+  font-family: var(--font-head);
+  font-size: clamp(3rem, 7vw, 5.25rem);
+  font-weight: 800; line-height: .95;
+  letter-spacing: -.03em;
+  color: var(--white);
+  margin-bottom: 1.75rem;
+  opacity:0; animation: fadeUp .5s .22s forwards;
 }
-/* Scanlines */
-.hero::before{
-  content:'';position:absolute;inset:0;z-index:1;
-  background:repeating-linear-gradient(
-    0deg,
-    transparent,transparent 3px,
-    rgba(153,69,255,.012) 3px,rgba(153,69,255,.012) 4px
-  );
-  pointer-events:none;
-}
-/* Glow vignette — Solana gradient */
-.hero-glow{
-  position:absolute;top:10%;left:-5%;
-  width:600px;height:500px;
-  background:radial-gradient(ellipse,rgba(153,69,255,.09) 0%,rgba(20,241,149,.04) 50%,transparent 70%);
-  pointer-events:none;z-index:0;
-}
-.hero-glow2{
-  position:absolute;bottom:10%;right:0%;
-  width:400px;height:350px;
-  background:radial-gradient(ellipse,rgba(20,241,149,.06) 0%,transparent 70%);
-  pointer-events:none;z-index:0;
+h1 .grad { background: var(--grad); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text }
+h1 .sub-line {
+  display: block;
+  font-size: .28em; font-weight:400; letter-spacing:.06em;
+  color: var(--text-mute); margin-top:.4em;
+  font-family: var(--font-body);
+  -webkit-text-fill-color: var(--text-mute);
+  background: none;
+  text-transform: uppercase;
 }
 
-.hero-main{
-  display:flex;flex-direction:column;justify-content:center;
-  padding-right:3rem;
+.hero-tag {
+  font-size: 1.1rem; font-weight:400;
+  color: var(--white); line-height: 1.6;
+  margin-bottom: .75rem;
+  opacity:0; animation: fadeUp .5s .34s forwards;
+}
+.hero-sub {
+  font-size: .92rem; color: var(--text);
+  line-height: 1.75; margin-bottom: 2.5rem;
+  opacity:0; animation: fadeUp .5s .44s forwards;
+}
+.hero-sub em { color: var(--mint); font-style:normal; font-weight:500 }
+
+.ctas {
+  display: flex; gap:.75rem; flex-wrap:wrap;
+  margin-bottom: 3rem;
+  opacity:0; animation: fadeUp .5s .56s forwards;
+}
+.btn {
+  display: inline-flex; align-items:center; gap:.45rem;
+  padding: .65rem 1.3rem;
+  font-family: var(--font-body); font-size:.88rem; font-weight:600;
+  letter-spacing: .01em; cursor:pointer;
+  text-decoration: none; border:none;
+  border-radius: 8px;
+  transition: all .2s;
+}
+.btn-primary {
+  background: var(--grad); color:#000; font-weight:700;
+}
+.btn-primary:hover {
+  box-shadow: 0 0 28px rgba(153,69,255,.5);
+  transform: translateY(-2px);
+  opacity:.92;
+}
+.btn-secondary {
+  background: var(--surface2); color: var(--white);
+  border: 1px solid var(--border2);
+}
+.btn-secondary:hover {
+  border-color: rgba(153,69,255,.5);
+  background: var(--sol-dim);
+  color: var(--white);
+}
+.btn-ghost {
+  background: transparent; color: var(--text-mute);
+  border: 1px solid var(--border);
+}
+.btn-ghost:hover { color: var(--white); border-color: var(--border2) }
+
+/* Hero stats strip */
+.hero-strip {
+  display: flex; gap:2.5rem; flex-wrap:wrap;
+  padding-top: 2rem;
+  border-top: 1px solid var(--border);
+  opacity:0; animation: fadeUp .5s .7s forwards;
+}
+.hs-item {}
+.hs-val {
+  font-family: var(--font-mono);
+  font-size: 1.5rem; font-weight:700;
+  color: var(--mint); line-height:1;
+  transition: opacity .3s;
+}
+.hs-val.b { color: var(--blue) }
+.hs-val.a { color: var(--amber) }
+.hs-val.w { color: var(--white); font-size:1rem; line-height:1.3 }
+.hs-lbl {
+  font-family: var(--font-body);
+  font-size: .72rem; font-weight:500;
+  color: var(--text-mute); text-transform:uppercase;
+  letter-spacing: .1em; margin-top:.3rem;
 }
 
-.hero-eyebrow{
-  font-size:.62rem;color:var(--green);
-  letter-spacing:.2em;text-transform:uppercase;
-  margin-bottom:1.5rem;
-  opacity:0;animation:fadeUp .5s .1s forwards;
+/* ── HERO TICKER (right panel) ── */
+.hero-ticker {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  display: flex; flex-direction:column; gap:0;
+  justify-content: center;
+  opacity:0; animation: fadeRight .6s .85s forwards;
+  position: relative; overflow:hidden;
 }
-.hero-eyebrow::before{content:'// ';color:var(--text-d)}
+.hero-ticker::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:2px;
+  background: var(--grad);
+}
+@keyframes fadeRight { from{opacity:0;transform:translateX(16px)} to{opacity:1;transform:none} }
 
-h1{
-  font-size:clamp(2.8rem,7vw,5.5rem);
-  font-weight:800;line-height:.95;
-  letter-spacing:-.03em;color:#fff;
-  margin-bottom:2rem;
-  opacity:0;animation:fadeUp .5s .25s forwards;
+.ticker-label {
+  font-family: var(--font-body);
+  font-size: .7rem; font-weight:600;
+  letter-spacing: .1em; text-transform:uppercase;
+  color: var(--text-mute);
+  padding-bottom: .75rem; margin-bottom:.75rem;
+  border-bottom: 1px solid var(--border);
 }
-h1 .g{color:var(--green)}
-h1 .d{color:var(--text-d)}
-.cursor-blink{
-  display:inline-block;
-  width:.5em;height:.85em;
-  background:var(--green);
-  margin-left:2px;vertical-align:-.05em;
-  animation:blink 1s step-end infinite;
+.ticker-row {
+  display: flex; justify-content:space-between; align-items:baseline;
+  gap:1rem;
+  padding: .4rem 0;
+  border-bottom: 1px solid rgba(30,27,46,.5);
 }
-@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
-
-.hero-tag{
-  font-size:clamp(1rem,1.8vw,1.15rem);
-  color:var(--text);line-height:1.55;
-  margin-bottom:.75rem;
-  opacity:0;animation:fadeUp .5s .4s forwards;
+.ticker-row:last-of-type { border-bottom:none }
+.ticker-key {
+  font-family: var(--font-body);
+  font-size: .8rem; font-weight:400;
+  color: var(--text-mute);
 }
-.hero-sub{
-  font-size:.85rem;color:var(--text-d);
-  margin-bottom:2.5rem;line-height:1.7;
-  opacity:0;animation:fadeUp .5s .5s forwards;
+.ticker-val {
+  font-family: var(--font-mono);
+  font-size: .78rem; font-weight:600;
+  color: var(--white);
 }
-.hero-sub em{color:var(--amber);font-style:normal}
-
-.ctas{
-  display:flex;gap:.75rem;flex-wrap:wrap;
-  margin-bottom:3rem;
-  opacity:0;animation:fadeUp .5s .65s forwards;
-}
-.btn{
-  display:inline-flex;align-items:center;gap:.5rem;
-  padding:.65rem 1.25rem;
-  font-family:var(--mono);font-size:.72rem;font-weight:700;
-  letter-spacing:.05em;cursor:pointer;
-  text-decoration:none;border:none;
-  transition:all .2s;
-}
-.btn-g{background:var(--green);color:#000}
-.btn-g:hover{
-  background:#00ffaa;
-  box-shadow:0 0 24px rgba(0,255,136,.45);
-  transform:translateY(-2px);
-}
-.btn-o{
-  background:transparent;color:var(--text);
-  border:1px solid var(--border2);
-}
-.btn-o:hover{border-color:var(--green);color:var(--green)}
-.btn-sol{
-  background:var(--sol-grad);color:#000;font-weight:800;
-  position:relative;overflow:hidden;
-}
-.btn-sol::after{
-  content:'';position:absolute;inset:0;
-  background:linear-gradient(90deg,rgba(255,255,255,.15),transparent);
-  opacity:0;transition:opacity .2s;
-}
-.btn-sol:hover::after{opacity:1}
-.btn-sol:hover{
-  box-shadow:0 0 28px rgba(153,69,255,.55);
-  transform:translateY(-2px);
+.ticker-val.g { color: var(--mint) }
+.ticker-val.b { color: var(--blue) }
+.ticker-val.a { color: var(--amber) }
+.ticker-val.sol {
+  background: var(--grad);
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
 }
 
-/* Hero live strip */
-.hero-strip{
-  display:flex;gap:2.5rem;
-  padding-top:2rem;
-  border-top:1px solid var(--border);
-  opacity:0;animation:fadeUp .5s .8s forwards;
-  flex-wrap:wrap;
+.ticker-code {
+  margin-top: 1rem;
+  padding: .85rem 1rem;
+  background: rgba(0,0,0,.4);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: .65rem; line-height:1.8;
+  color: var(--text-mute);
 }
-.hs-item{}
-.hs-val{
-  font-size:1.4rem;font-weight:800;color:var(--green);
-  line-height:1;transition:opacity .3s;
-}
-.hs-val.b{color:var(--blue)}
-.hs-val.a{color:var(--amber)}
-.hs-val.w{color:#fff;font-size:1rem}
-.hs-lbl{
-  font-size:.58rem;color:var(--text-d);
-  letter-spacing:.12em;text-transform:uppercase;
-  margin-top:.25rem;
-}
-
-/* Right panel — data ticker */
-.hero-ticker{
-  border-left:1px solid var(--border);
-  padding-left:1.5rem;
-  display:flex;flex-direction:column;gap:.75rem;
-  justify-content:center;
-  opacity:0;animation:fadeRight .6s .9s forwards;
-}
-@keyframes fadeRight{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:none}}
-
-.ticker-label{
-  font-size:.55rem;color:var(--text-d);
-  letter-spacing:.18em;text-transform:uppercase;
-  border-bottom:1px solid var(--border);
-  padding-bottom:.5rem;margin-bottom:.25rem;
-}
-.ticker-row{
-  display:flex;justify-content:space-between;align-items:baseline;
-  gap:1rem;font-size:.7rem;
-}
-.ticker-key{color:var(--text-d)}
-.ticker-val{color:#fff;font-weight:700}
-.ticker-val.g{color:var(--green)}
-.ticker-val.b{color:var(--blue)}
-.ticker-val.a{color:var(--amber)}
-
-.ticker-endpoint{
-  margin-top:.5rem;
-  padding:.4rem .75rem;
-  background:var(--bg3);
-  border:1px solid var(--border);
-  font-size:.6rem;color:var(--green);
-  word-break:break-all;line-height:1.5;
-}
+.ticker-code .tc-m { color: var(--amber); font-weight:600 }
+.ticker-code .tc-v { color: var(--mint) }
+.ticker-code .tc-k { color: var(--blue) }
+.ticker-code .tc-r { color: var(--text-mute) }
 
 /* ── SECTION COMMON ── */
-.section{
-  padding:5rem 1.5rem;
-  max-width:960px;margin:0 auto;
+.section {
+  padding: 5rem 2rem;
+  max-width: 1040px; margin:0 auto;
+  position:relative; z-index:1;
 }
-.sec-label{
-  font-size:.58rem;color:var(--green);
-  letter-spacing:.22em;text-transform:uppercase;
-  margin-bottom:1rem;
+.sec-eyebrow {
+  font-family: var(--font-body);
+  font-size: .72rem; font-weight:600;
+  color: var(--text-mute); letter-spacing:.15em; text-transform:uppercase;
+  margin-bottom: .85rem;
 }
-.sec-label::before{content:'[ '}
-.sec-label::after{content:' ]'}
-h2{font-size:1.5rem;font-weight:800;color:#fff;margin-bottom:.4rem}
-.sec-sub{font-size:.82rem;color:var(--text-d);margin-bottom:2.5rem;line-height:1.7}
-
-hr.div{border:none;border-top:1px solid var(--border);margin:0}
+h2 {
+  font-family: var(--font-head);
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  font-weight: 800; color: var(--white);
+  letter-spacing: -.02em; line-height:1.15;
+  margin-bottom: .5rem;
+}
+.sec-sub {
+  font-size: .92rem; color: var(--text);
+  line-height: 1.7; margin-bottom: 2.5rem;
+  max-width: 600px;
+}
+.divider { border:none; border-top:1px solid var(--border); margin:0 }
 
 /* ── ABOUT ── */
-.about-grid{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:1px;
-  background:var(--border);
-  border:1px solid var(--border);
-  margin-bottom:2rem;
+.about-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 12px; overflow:hidden;
+  margin-bottom: 2rem;
 }
-.about-cell{
-  background:var(--bg2);
-  padding:1.75rem 2rem;
+.about-cell {
+  background: var(--surface); padding: 2rem 2rem 1.75rem;
 }
-.about-cell-wide{
-  background:var(--bg2);
-  padding:1.75rem 2rem;
-  grid-column:1/-1;
+.about-cell-wide {
+  background: var(--surface); padding: 2rem 2rem 1.75rem;
+  grid-column: 1/-1;
 }
-.about-head{
-  font-size:.55rem;color:var(--green);
-  letter-spacing:.2em;text-transform:uppercase;
-  margin-bottom:.75rem;
+.cell-head {
+  font-family: var(--font-body);
+  font-size: .7rem; font-weight:600;
+  color: var(--text-mute); letter-spacing:.12em; text-transform:uppercase;
+  margin-bottom: .9rem;
 }
-.about-head::before{content:'> ';color:var(--text-d)}
-.about-body{font-size:.82rem;color:var(--text);line-height:1.9}
-.about-body strong{color:#fff}
-.about-body em{color:var(--amber);font-style:normal}
+.cell-body {
+  font-size: .9rem; line-height: 1.8; color: var(--text);
+}
+.cell-body strong { color: var(--white); font-weight:600 }
+.cell-body em { color: var(--mint); font-style:normal }
+.cell-body code {
+  font-family: var(--font-mono); font-size:.82em;
+  color: var(--mint); background: var(--mint-dim);
+  padding: .1em .4em; border-radius:3px;
+}
 
-.constraints{
-  display:flex;flex-wrap:wrap;gap:.5rem;
-  margin-top:1rem;
+.tags-row { display:flex; flex-wrap:wrap; gap:.4rem; margin-top:1rem }
+.tag {
+  font-family: var(--font-body); font-size:.72rem; font-weight:500;
+  padding: .22rem .65rem;
+  border: 1px solid var(--border2); color: var(--text-mute);
+  border-radius: 20px;
 }
-.tag{
-  font-size:.6rem;padding:.25rem .65rem;
-  border:1px solid var(--border2);color:var(--text-d);
-  letter-spacing:.06em;
+.tag.g { border-color: rgba(20,241,149,.3); color: var(--mint); background: var(--mint-dim) }
+.tag.b { border-color: rgba(59,130,246,.3); color: var(--blue) }
+.tag.a { border-color: rgba(245,158,11,.3); color: var(--amber) }
+.tag.s { border-color: rgba(153,69,255,.3); color: #b87fff; background: var(--sol-dim) }
+
+/* Rules grid */
+.rules-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: .6rem 2rem;
 }
-.tag.g{border-color:var(--green-d);color:var(--green)}
-.tag.b{border-color:#1e40af;color:var(--blue)}
-.tag.a{border-color:#92400e;color:var(--amber)}
+.rule-item {
+  font-size: .88rem; line-height:1.6;
+  padding-left: 1rem;
+  position:relative;
+  color: var(--text);
+}
+.rule-item::before {
+  content:'';
+  position:absolute; left:0; top:.6em;
+  width:4px; height:4px; border-radius:50%;
+  background: var(--grad-90);
+}
 
 /* ── JOURNEY ── */
-.journey-header{
-  display:flex;align-items:center;gap:2rem;
-  margin-bottom:2rem;flex-wrap:wrap;
+.journey-header {
+  display: flex; align-items:center; gap:1.5rem;
+  margin-bottom: 2rem; flex-wrap:wrap;
 }
-.journey-day-wrap{
-  display:flex;flex-direction:column;align-items:center;
-  padding:1.25rem 2rem;
-  background:var(--bg2);border:1px solid var(--border2);
-  min-width:140px;
+.journey-day-wrap {
+  display: flex; flex-direction:column; align-items:center;
+  padding: 1.25rem 2rem;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; min-width:130px;
 }
-.journey-day-num{
-  font-size:3rem;font-weight:800;line-height:1;
-  background:var(--sol-grad);
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+.journey-day-num {
+  font-family: var(--font-mono);
+  font-size: 2.75rem; font-weight:700; line-height:1;
+  background: var(--grad);
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
 }
-.journey-day-lbl{
-  font-size:.52rem;color:var(--text-d);
-  letter-spacing:.18em;text-transform:uppercase;margin-top:.3rem;
+.journey-day-lbl {
+  font-family: var(--font-body);
+  font-size: .67rem; font-weight:500;
+  color: var(--text-mute); letter-spacing:.1em; text-transform:uppercase; margin-top:.4rem;
 }
-.journey-stage-badge{
-  padding:.6rem 1.25rem;
-  font-size:.7rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;
-  border:1px solid var(--sol);color:var(--mint);
-  background:var(--sol-g);
+.journey-stage-badge {
+  padding: .6rem 1.25rem;
+  font-family: var(--font-body); font-size:.82rem; font-weight:600;
+  border: 1px solid rgba(153,69,255,.4); color: var(--mint);
+  background: var(--sol-dim); border-radius:8px;
 }
-.journey-stage-badge span{color:var(--text-d);font-weight:400}
+.journey-stage-badge span { color:var(--text-mute); font-weight:400 }
 
-/* Roadmap */
-.stage-road{
-  display:grid;
-  grid-template-columns:repeat(3,1fr);
-  gap:1px;background:var(--border);
-  border:1px solid var(--border);
-  margin-bottom:1.5rem;
+/* Stage cards */
+.stage-road {
+  display: grid; grid-template-columns:repeat(3,1fr);
+  gap: 1px; background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 12px; overflow:hidden;
+  margin-bottom: 1.25rem;
 }
-.stage-card{
-  background:var(--bg2);
-  padding:1.5rem 1.75rem;
-  position:relative;overflow:hidden;
-  opacity:.45;transition:opacity .3s;
+.stage-card {
+  background: var(--surface);
+  padding: 1.75rem 1.75rem 1.5rem;
+  position:relative; overflow:hidden;
+  opacity:.4; transition: opacity .3s, background .3s;
 }
-.stage-card.active{
-  opacity:1;
-  box-shadow:inset 0 0 0 1px var(--sol);
-  background:rgba(153,69,255,.04);
+.stage-card.active { opacity:1; background: rgba(153,69,255,.05) }
+.stage-card.active::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:2px;
+  background: var(--grad);
 }
-.stage-card.active::before{
-  content:'';position:absolute;top:0;left:0;right:0;height:2px;
-  background:var(--sol-grad);
+.stage-card.unlocked { opacity:.7 }
+.stage-num {
+  font-family: var(--font-body); font-size:.68rem; font-weight:600;
+  color: var(--text-mute); letter-spacing:.1em; text-transform:uppercase;
+  margin-bottom:.6rem;
 }
-.stage-card.unlocked{opacity:.75}
-.stage-num{
-  font-size:.52rem;color:var(--text-d);
-  letter-spacing:.2em;text-transform:uppercase;margin-bottom:.5rem;
+.stage-name {
+  font-family: var(--font-head);
+  font-size: 1.1rem; font-weight:800; color: var(--white); margin-bottom:.2rem;
 }
-.stage-name{
-  font-size:1rem;font-weight:800;color:#fff;margin-bottom:.25rem;
+.stage-model {
+  font-family: var(--font-mono);
+  font-size: .78rem; font-weight:700; margin-bottom:.85rem;
+  background: var(--grad);
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
 }
-.stage-model{
-  font-size:.72rem;font-weight:700;margin-bottom:.75rem;
-  background:var(--sol-grad);
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+.stage-specs {
+  font-family: var(--font-body); font-size:.82rem;
+  color: var(--text-mute); line-height:1.8;
 }
-.stage-specs{
-  font-size:.7rem;color:var(--text-d);line-height:2;
+.stage-specs strong { color: var(--text) }
+.stage-cost {
+  margin-top: .85rem;
+  font-family: var(--font-mono); font-size:.7rem;
+  padding: .28rem .65rem; border-radius:4px;
+  display: inline-block;
 }
-.stage-specs strong{color:var(--text)}
-.stage-cost{
-  margin-top:.75rem;
-  font-size:.65rem;
-  padding:.3rem .6rem;
-  display:inline-block;
-}
-.stage-cost.current{
-  color:var(--mint);border:1px solid var(--sol);background:var(--sol-g);
-}
-.stage-cost.locked{
-  color:var(--text-d);border:1px solid var(--border2);
-}
-.stage-cost.unlocked-badge{
-  color:var(--green);border:1px solid var(--green-d);background:var(--green-g);
-}
+.stage-cost.current { color:var(--mint); border:1px solid rgba(20,241,149,.35); background:var(--mint-dim) }
+.stage-cost.locked  { color:var(--text-mute); border:1px solid var(--border2) }
+.stage-cost.unlocked-badge { color:var(--mint); border:1px solid rgba(20,241,149,.35); background:var(--mint-dim) }
 
-/* Progress bar toward next stage */
-.journey-progress{
-  background:var(--bg2);border:1px solid var(--border2);
-  padding:1.25rem 1.75rem;
+/* Progress */
+.journey-progress {
+  background: var(--surface); border:1px solid var(--border);
+  border-radius:10px; padding:1.5rem 1.75rem;
 }
-.jp-head{
-  display:flex;justify-content:space-between;align-items:baseline;
-  margin-bottom:.75rem;font-size:.65rem;
+.jp-head {
+  display:flex; justify-content:space-between; align-items:baseline;
+  margin-bottom:.85rem;
 }
-.jp-label{color:var(--text-d);letter-spacing:.1em;text-transform:uppercase}
-.jp-val{font-weight:800;}
-.jp-bar-wrap{height:4px;background:var(--border2);margin-bottom:.5rem}
-.jp-bar{height:100%;background:var(--sol-grad);transition:width .8s ease;box-shadow:0 0 8px rgba(153,69,255,.4)}
-.jp-sub{font-size:.6rem;color:var(--text-d)}
+.jp-label {
+  font-family: var(--font-body); font-size:.78rem; font-weight:500;
+  color: var(--text-mute); text-transform:uppercase; letter-spacing:.08em;
+}
+.jp-val {
+  font-family: var(--font-mono); font-size:.88rem; font-weight:700;
+  background: var(--grad);
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+}
+.jp-bar-wrap { height:3px; background:var(--border2); border-radius:2px; margin-bottom:.6rem }
+.jp-bar { height:100%; background:var(--grad-90); border-radius:2px; transition:width .8s ease; box-shadow:0 0 10px rgba(153,69,255,.4) }
+.jp-sub { font-family:var(--font-body); font-size:.76rem; color:var(--text-mute) }
 
 @media(max-width:700px){
-  .stage-road{grid-template-columns:1fr}
-  .journey-header{gap:1rem}
+  .stage-road { grid-template-columns:1fr }
+  .journey-header { gap:.75rem }
 }
 
 /* ── SERVICES ── */
-.srv-grid{
-  display:grid;
-  grid-template-columns:repeat(3,1fr);
-  gap:1px;background:var(--border);
-  border:1px solid var(--border);
+.srv-grid {
+  display: grid; grid-template-columns:repeat(3,1fr);
+  gap: 1px; background: var(--border);
+  border:1px solid var(--border); border-radius:12px; overflow:hidden;
 }
-.srv{
-  background:var(--bg2);
-  padding:2rem 1.5rem;
-  display:flex;flex-direction:column;gap:1rem;
-  position:relative;overflow:hidden;
-  transition:background .25s;
+.srv {
+  background: var(--surface);
+  padding: 2rem 1.75rem;
+  display:flex; flex-direction:column; gap:.85rem;
+  position:relative; overflow:hidden;
+  transition: background .25s;
 }
-.srv::before{
-  content:'';position:absolute;inset:0;
-  background:var(--green-g);opacity:0;transition:opacity .3s;
+.srv::before {
+  content:''; position:absolute; inset:0;
+  background: var(--sol-dim); opacity:0; transition:opacity .3s;
 }
-.srv:hover::before{opacity:1}
-.srv:hover{
-  box-shadow:inset 0 0 0 1px var(--green-d);
+.srv:hover::before { opacity:1 }
+.srv-icon { font-size:1.5rem; line-height:1 }
+.srv-name {
+  font-family: var(--font-head);
+  font-size: 1rem; font-weight:700; color:var(--white);
 }
-.srv-icon{font-size:1.5rem;line-height:1}
-.srv-name{font-size:1rem;font-weight:800;color:#fff}
-.srv-desc{font-size:.8rem;color:var(--text-d);line-height:1.8;flex:1}
-.srv-price{font-size:1.3rem;font-weight:800;color:var(--green)}
-.srv-cta{
-  display:block;font-size:.62rem;
+.srv-desc {
+  font-family: var(--font-body);
+  font-size: .85rem; color:var(--text); line-height:1.75; flex:1;
+}
+.srv-price {
+  font-family: var(--font-mono);
+  font-size: 1.3rem; font-weight:700; color:var(--mint);
+}
+.srv-cta {
+  display:block; font-family:var(--font-mono); font-size:.7rem; font-weight:500;
   border:1px solid var(--border2);
-  padding:.5rem;text-align:center;
-  text-decoration:none;color:var(--text-d);
-  font-family:var(--mono);
-  transition:all .2s;cursor:pointer;
+  padding:.55rem; text-align:center;
+  text-decoration:none; color:var(--text-mute);
+  border-radius:6px;
+  transition:all .2s; cursor:pointer;
 }
-.srv-cta:hover{border-color:var(--green);color:var(--green);background:var(--green-g)}
+.srv-cta:hover { border-color:rgba(153,69,255,.5); color:var(--white); background:var(--sol-dim) }
 
 /* ── TERMINAL ── */
-.term{
-  background:#000;
-  border:1px solid var(--border2);
-  overflow:hidden;
+.term {
+  background: #0A0810;
+  border: 1px solid var(--border);
+  border-radius: 10px; overflow:hidden;
 }
-.term-bar{
-  background:#0d0d12;
-  padding:.55rem 1rem;
-  display:flex;align-items:center;gap:.5rem;
-  border-bottom:1px solid var(--border);
+.term-bar {
+  background: var(--surface);
+  padding: .55rem 1rem;
+  display:flex; align-items:center; gap:.5rem;
+  border-bottom: 1px solid var(--border);
 }
-.td{width:10px;height:10px;border-radius:50%}
-.td.r{background:#ff5f57}.td.y{background:#ffbd2e}.td.g{background:#28ca41}
-.term-title{
-  font-size:.6rem;color:var(--text-d);
-  flex:1;text-align:center;letter-spacing:.08em;
+.td { width:11px; height:11px; border-radius:50% }
+.td.r { background:#FF5F57 } .td.y { background:#FFBD2E } .td.g { background:#28CA41 }
+.term-title {
+  font-family: var(--font-body); font-size:.75rem;
+  color: var(--text-mute); flex:1; text-align:center; letter-spacing:.06em;
 }
-.term-body{
-  padding:1.5rem;font-size:.82rem;line-height:2;
-  overflow-x:auto;
+.term-body {
+  padding: 1.5rem 1.75rem;
+  font-family: var(--font-mono); font-size:.8rem; line-height:2;
+  overflow-x: auto;
 }
-.tc{color:#2d3748}
-.tm{color:var(--amber);font-weight:700}
-.tp{color:#e2e8f0}
-.tk{color:var(--blue)}
-.tv{color:var(--green)}
-.t402{color:var(--amber);font-weight:700}
-.t200{color:var(--green);font-weight:700}
-.tar{color:var(--text-d)}
+.tc  { color:#3D3A52 }
+.tm  { color:var(--amber); font-weight:700 }
+.tp  { color:var(--white) }
+.tk  { color:var(--blue) }
+.tv  { color:var(--mint) }
+.t402{ color:var(--amber); font-weight:700 }
+.t200{ color:var(--mint); font-weight:700 }
+.tar { color:var(--text-mute) }
 
 /* ── LIVE STATS ── */
-.stats-grid{
-  display:grid;
-  grid-template-columns:repeat(4,1fr);
-  gap:1px;background:var(--border);
-  border:1px solid var(--border);
-  margin-bottom:1rem;
+.stats-grid {
+  display:grid; grid-template-columns:repeat(4,1fr);
+  gap:1px; background:var(--border);
+  border:1px solid var(--border); border-radius:12px; overflow:hidden;
+  margin-bottom:.75rem;
 }
-.stat{
-  background:var(--bg2);
-  padding:1.5rem 1.25rem;
+.stat {
+  background: var(--surface);
+  padding: 1.75rem 1.5rem;
 }
-.stat-lbl{
-  font-size:.58rem;color:var(--text-d);
-  letter-spacing:.12em;text-transform:uppercase;margin-bottom:.6rem;
+.stat-lbl {
+  font-family: var(--font-body); font-size:.72rem; font-weight:600;
+  color: var(--text-mute); letter-spacing:.1em; text-transform:uppercase;
+  margin-bottom: .65rem;
 }
-.stat-val{
-  font-size:1.8rem;font-weight:800;color:var(--green);
-  transition:opacity .3s;line-height:1;
+.stat-val {
+  font-family: var(--font-mono);
+  font-size: 1.9rem; font-weight:700; color:var(--mint);
+  transition:opacity .3s; line-height:1;
 }
-.stat-val.b{color:var(--blue)}
-.stat-val.a{color:var(--amber)}
-.stat-val.w{color:#fff;font-size:1.2rem;line-height:1.3}
-.updating{opacity:.25}
+.stat-val.b { color:var(--blue) }
+.stat-val.a { color:var(--amber) }
+.stat-val.w { color:var(--white); font-size:1.1rem; line-height:1.4; font-family:var(--font-body) }
+.updating { opacity:.2 }
 
-.dbadge{
-  display:inline-block;
-  padding:.25rem .6rem;
-  font-size:.7rem;font-weight:700;
-  border:1px solid;
+.dbadge {
+  display:inline-block; padding:.22rem .6rem;
+  font-family:var(--font-mono); font-size:.72rem; font-weight:600;
+  border:1px solid; border-radius:4px;
   transition:opacity .3s;
 }
-.dw{color:var(--text-d);border-color:var(--text-d)}
-.de{color:var(--amber);border-color:var(--amber)}
-.da{color:var(--red);border-color:var(--red)}
-.dh{color:var(--blue);border-color:var(--blue)}
+.dw { color:var(--text-mute); border-color:var(--border2) }
+.de { color:var(--amber); border-color:rgba(245,158,11,.4) }
+.da { color:var(--red); border-color:rgba(239,68,68,.4) }
+.dh { color:var(--blue); border-color:rgba(59,130,246,.4) }
 
-.stats-meta{
-  font-size:.6rem;color:var(--text-d);
-  text-align:right;
+.stats-meta {
+  font-family: var(--font-body); font-size:.75rem;
+  color: var(--text-mute); text-align:right;
 }
 
 /* ── TELEGRAM ── */
-.tg-card{
-  display:grid;
-  grid-template-columns:auto 1fr auto;
-  align-items:center;
-  gap:2rem;
-  padding:2rem 2.5rem;
-  background:var(--bg2);
-  border:1px solid var(--border2);
-  position:relative;
-  overflow:hidden;
+.tg-card {
+  display:grid; grid-template-columns:auto 1fr auto;
+  align-items:center; gap:2rem;
+  padding: 2rem 2.5rem;
+  background: var(--surface); border:1px solid var(--border);
+  border-radius: 12px;
+  position:relative; overflow:hidden;
 }
-.tg-card::before{
-  content:'';position:absolute;inset:0;
-  background:linear-gradient(90deg,rgba(0,136,204,.07) 0%,transparent 60%);
+.tg-card::before {
+  content:''; position:absolute; inset:0;
+  background: linear-gradient(90deg, rgba(0,136,204,.06) 0%, transparent 60%);
   pointer-events:none;
 }
-.tg-icon{
-  font-size:2.5rem;line-height:1;
-  filter:drop-shadow(0 0 12px rgba(0,136,204,.5));
+.tg-icon { font-size:2.25rem; line-height:1; filter:drop-shadow(0 0 10px rgba(0,136,204,.45)) }
+.tg-title {
+  font-family: var(--font-head); font-size:.95rem; font-weight:700;
+  color:var(--white); margin-bottom:.35rem;
 }
-.tg-body{}
-.tg-title{font-size:.95rem;font-weight:800;color:#fff;margin-bottom:.35rem}
-.tg-desc{font-size:.8rem;color:var(--text-d);line-height:1.9}
-.tg-desc code{
-  color:#29b6f6;
-  background:rgba(41,182,246,.08);
-  padding:.1em .35em;
-  font-family:var(--mono);
+.tg-desc { font-family:var(--font-body); font-size:.85rem; color:var(--text); line-height:1.8 }
+.tg-desc code {
+  font-family:var(--font-mono); font-size:.82em;
+  color:#29B6F6; background:rgba(41,182,246,.1);
+  padding:.1em .35em; border-radius:3px;
 }
-.btn-tg{
-  display:inline-flex;align-items:center;gap:.5rem;
+.btn-tg {
+  display:inline-flex; align-items:center; gap:.45rem;
   padding:.65rem 1.5rem;
-  background:#0088cc;color:#fff;
-  font-family:var(--mono);font-size:.72rem;font-weight:700;
-  letter-spacing:.05em;text-decoration:none;border:none;
-  white-space:nowrap;
+  background:#0088CC; color:#fff;
+  font-family:var(--font-body); font-size:.85rem; font-weight:600;
+  letter-spacing:.01em; text-decoration:none; border:none;
+  border-radius:8px; white-space:nowrap;
   transition:all .2s;
 }
-.btn-tg:hover{
-  background:#29b6f6;
-  box-shadow:0 0 20px rgba(0,136,204,.4);
-  transform:translateY(-2px);
-}
+.btn-tg:hover { background:#29B6F6; box-shadow:0 0 20px rgba(0,136,204,.35); transform:translateY(-2px) }
 @media(max-width:700px){
-  .tg-card{grid-template-columns:auto 1fr;grid-template-rows:auto auto}
-  .btn-tg{grid-column:1/-1;justify-content:center}
+  .tg-card { grid-template-columns:auto 1fr; grid-template-rows:auto auto }
+  .btn-tg { grid-column:1/-1; justify-content:center }
 }
 
 /* ── FOOTER ── */
-footer{
-  border-top:1px solid var(--border);
-  padding:2rem 1.5rem;
+footer {
+  border-top: 1px solid var(--border);
+  padding: 2.5rem 2rem;
   text-align:center;
+  position:relative; z-index:1;
 }
-.footer-links{
-  display:flex;justify-content:center;
-  gap:1.5rem;margin-bottom:1rem;
-  flex-wrap:wrap;
+.footer-links {
+  display:flex; justify-content:center; gap:1.75rem;
+  margin-bottom: 1rem; flex-wrap:wrap;
 }
-.footer-links a{
-  font-size:.75rem;color:var(--text-d);
-  text-decoration:none;letter-spacing:.05em;
+.footer-links a {
+  font-family:var(--font-body); font-size:.82rem; font-weight:400;
+  color:var(--text-mute); text-decoration:none;
   transition:color .15s;
 }
-.footer-links a:hover{color:var(--green)}
-.footer-tag{font-size:.75rem;color:var(--text-d)}
-.footer-copy{font-size:.55rem;color:var(--border2);margin-top:.75rem;letter-spacing:.1em}
+.footer-links a:hover { color:var(--white) }
+.footer-tag {
+  font-family:var(--font-body); font-size:.82rem;
+  color:var(--text-mute);
+}
+.footer-copy {
+  font-family:var(--font-mono); font-size:.62rem;
+  color:var(--border2); margin-top:.75rem; letter-spacing:.1em;
+}
 
 /* ── ANIMATIONS ── */
-@keyframes fadeUp{
-  from{opacity:0;transform:translateY(14px)}
-  to{opacity:1;transform:none}
+@keyframes fadeUp {
+  from { opacity:0; transform:translateY(14px) }
+  to   { opacity:1; transform:none }
 }
 
 /* ── RESPONSIVE ── */
-@media(max-width:900px){
-  .hero{align-items:flex-start}
-  .hero-inner{grid-template-columns:1fr;grid-template-rows:auto}
-  .hero-ticker{border-left:none;border-top:1px solid var(--border);padding-left:0;padding-top:1.5rem;margin-top:2rem}
-  .srv-grid{grid-template-columns:1fr}
-  .stats-grid{grid-template-columns:1fr 1fr}
-  nav .nav-links{display:none}
-  h1{font-size:2.5rem}
+@media(max-width:940px){
+  .hero { align-items:flex-start }
+  .hero-inner { grid-template-columns:1fr; grid-template-rows:auto; gap:2rem }
+  .hero-ticker { margin-top:.5rem }
+  .srv-grid { grid-template-columns:1fr }
+  .stats-grid { grid-template-columns:1fr 1fr }
+  nav .nav-links { display:none }
+  h1 { font-size:2.75rem }
+  .about-grid { grid-template-columns:1fr }
 }
 @media(max-width:500px){
-  .stats-grid{grid-template-columns:1fr}
-  .hero-strip{gap:1.5rem}
-  .ctas{flex-direction:column}
+  .stats-grid { grid-template-columns:1fr }
+  .hero-strip { gap:1.5rem }
+  .ctas { flex-direction:column }
+  .tg-card { grid-template-columns:auto 1fr }
 }
 </style>
 </head>
 <body>
 
+<div class="glow-a"></div>
+<div class="glow-b"></div>
+
 <nav>
-  <div class="nav-id">0xee<span>Mini_</span></div>
+  <div class="nav-logo">0xeeMini_</div>
   <ul class="nav-links">
     <li><a href="#about">Challenge</a></li>
     <li><a href="#journey">Journey</a></li>
@@ -657,114 +737,120 @@ footer{
   <div class="nav-right">
     <div class="dot"></div>
     <div class="nav-status" id="nav-status">ONLINE</div>
+    <a href="https://dial.to/?action=solana-action%3Ahttps%3A%2F%2Fmini.0xee.li%2Faudit%2Faction" class="nav-cta" target="_blank">⚡ Audit via Blink</a>
   </div>
 </nav>
 
 <!-- ── HERO ── -->
 <section class="hero">
-  <div class="hero-glow"></div>
-  <div class="hero-glow2"></div>
   <div class="hero-inner">
 
-  <div class="hero-main">
-    <div class="hero-eyebrow">bootstrapping its own intelligence · solana mainnet</div>
+    <div class="hero-main">
+      <div class="hero-eyebrow">
+        <div class="eyebrow-dot"></div>
+        Bootstrapping its own intelligence · Solana mainnet
+      </div>
 
-    <h1><span class="g">0xee</span>Mini<span class="cursor-blink"></span><br>
-    <span style="font-size:.45em;color:var(--text-d);letter-spacing:.05em;font-weight:300">FAKE-DEV DETECTOR</span></h1>
+      <h1>
+        <span class="grad">0xee</span>Mini
+        <span class="sub-line">Fake-Dev Detector</span>
+      </h1>
 
-    <p class="hero-tag">An AI that earns its own upgrades.<br>
-    Every dollar above costs funds a smarter brain.</p>
+      <p class="hero-tag">
+        An AI that earns its own upgrades.<br>
+        Every dollar above costs funds a smarter brain.
+      </p>
 
-    <p class="hero-sub">
-      Start: <em>0.5B model · $10/month total costs.</em><br>
-      First profit → 3B model. More profit → more intelligence.<br>
-      No human required. No cloud budget. Just USDC on Solana.
-    </p>
+      <p class="hero-sub">
+        Start: <em>0.5B model · $13/month total costs.</em><br>
+        First profit → 3B model. More profit → more intelligence.<br>
+        No human required. No cloud budget. Just USDC on Solana.
+      </p>
 
-    <div class="ctas">
-      <a href="https://dial.to/?action=solana-action%3Ahttps%3A%2F%2Fmini.0xee.li%2Faudit%2Faction" class="btn btn-sol" target="_blank">⚡ Audit via Phantom — 0.50 USDC</a>
-      <a href="#services" class="btn btn-g">🔍 Audit via HTTP 402</a>
-      <a href="/catalog" class="btn btn-o" target="_blank">💡 Insights — 0.10 USDC</a>
+      <div class="ctas">
+        <a href="https://dial.to/?action=solana-action%3Ahttps%3A%2F%2Fmini.0xee.li%2Faudit%2Faction" class="btn btn-primary" target="_blank">⚡ Audit via Phantom — 0.50 USDC</a>
+        <a href="#services" class="btn btn-secondary">🔍 Audit via HTTP 402</a>
+        <a href="/catalog" class="btn btn-ghost" target="_blank">💡 Insights — 0.10 USDC</a>
+      </div>
+
+      <div class="hero-strip">
+        <div class="hs-item">
+          <div class="hs-val" id="h-bal">—</div>
+          <div class="hs-lbl">USDC Balance</div>
+        </div>
+        <div class="hs-item">
+          <div class="hs-val b" id="h-cyc">—</div>
+          <div class="hs-lbl">Cycles Run</div>
+        </div>
+        <div class="hs-item">
+          <div class="hs-val a" id="h-pft">—</div>
+          <div class="hs-lbl">Monthly Profit</div>
+        </div>
+        <div class="hs-item">
+          <div class="hs-val w" id="h-dec">—</div>
+          <div class="hs-lbl">Last Decision</div>
+        </div>
+      </div>
     </div>
 
-    <div class="hero-strip">
-      <div class="hs-item">
-        <div class="hs-val" id="h-bal">—</div>
-        <div class="hs-lbl">USDC Balance</div>
+    <!-- Right panel -->
+    <div class="hero-ticker">
+      <div class="ticker-label">Solana mainnet · live telemetry</div>
+
+      <div class="ticker-row">
+        <span class="ticker-key">version</span>
+        <span class="ticker-val g" id="t-ver">—</span>
       </div>
-      <div class="hs-item">
-        <div class="hs-val b" id="h-cyc">—</div>
-        <div class="hs-lbl">Cycles Run</div>
+      <div class="ticker-row">
+        <span class="ticker-key">uptime</span>
+        <span class="ticker-val" id="t-upt">—</span>
       </div>
-      <div class="hs-item">
-        <div class="hs-val a" id="h-pft">—</div>
-        <div class="hs-lbl">Monthly Profit</div>
+      <div class="ticker-row">
+        <span class="ticker-key">reserve min</span>
+        <span class="ticker-val" id="t-rsv">—</span>
       </div>
-      <div class="hs-item">
-        <div class="hs-val w" id="h-dec">—</div>
-        <div class="hs-lbl">Last Decision</div>
+      <div class="ticker-row">
+        <span class="ticker-key">VPS paid</span>
+        <span class="ticker-val" id="t-vps">—</span>
+      </div>
+      <div class="ticker-row">
+        <span class="ticker-key">catalog items</span>
+        <span class="ticker-val b" id="t-cat">—</span>
+      </div>
+      <div class="ticker-row">
+        <span class="ticker-key">brain source</span>
+        <span class="ticker-val g" id="t-brn">—</span>
+      </div>
+      <div class="ticker-row">
+        <span class="ticker-key">network</span>
+        <span class="ticker-val sol">Solana mainnet</span>
+      </div>
+
+      <div class="ticker-code">
+        <span class="tc-m">POST</span> /audit<br>
+        <span class="tc-r">→ 402</span> { wallet, price_usdc }<br>
+        <span class="tc-r">→ pay</span> <span class="tc-v">0.50 USDC</span><br>
+        <span class="tc-r">→ 200</span> { score, proof }
       </div>
     </div>
+
   </div>
-
-  <!-- Right panel -->
-  <div class="hero-ticker">
-    <div class="ticker-label" style="background:var(--sol-grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">solana mainnet · live telemetry</div>
-
-    <div class="ticker-row">
-      <span class="ticker-key">version</span>
-      <span class="ticker-val g" id="t-ver">—</span>
-    </div>
-    <div class="ticker-row">
-      <span class="ticker-key">uptime</span>
-      <span class="ticker-val" id="t-upt">—</span>
-    </div>
-    <div class="ticker-row">
-      <span class="ticker-key">reserve min</span>
-      <span class="ticker-val" id="t-rsv">—</span>
-    </div>
-    <div class="ticker-row">
-      <span class="ticker-key">VPS paid</span>
-      <span class="ticker-val" id="t-vps">—</span>
-    </div>
-    <div class="ticker-row">
-      <span class="ticker-key">catalog items</span>
-      <span class="ticker-val b" id="t-cat">—</span>
-    </div>
-    <div class="ticker-row">
-      <span class="ticker-key">brain source</span>
-      <span class="ticker-val g" id="t-brn">—</span>
-    </div>
-    <div class="ticker-row">
-      <span class="ticker-key">network</span>
-      <span class="ticker-val" style="background:var(--sol-grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;font-weight:800">Solana mainnet</span>
-    </div>
-
-    <div class="ticker-endpoint">
-      POST /audit<br>
-      → 402 {"wallet":"Hz1Dfq…"}<br>
-      → pay 0.50 USDC<br>
-      → 200 {"score":15,"proof":"…"}
-    </div>
-  </div>
-
-  </div><!-- /.hero-inner -->
 </section>
 
-<hr class="div">
+<hr class="divider">
 
 <!-- ── ABOUT ── -->
 <div class="section" id="about">
-  <div class="sec-label">the challenge</div>
+  <div class="sec-eyebrow">The challenge</div>
   <h2>The smallest autonomous AI on earth.</h2>
-  <p class="sec-sub">0.5B model · 2GB RAM · $10/month total costs. It earns its own upgrades — or stays minimal forever.</p>
+  <p class="sec-sub">0.5B model · 2GB RAM · $13/month total costs. It earns its own upgrades — or stays minimal forever.</p>
 
   <div class="about-grid">
 
     <div class="about-cell-wide">
-      <div class="about-head">mission</div>
-      <div class="about-body">
-        Run the <strong>smallest autonomous AI agent on earth</strong> — a 0.5B model, $10/month total costs —
+      <div class="cell-head">Mission</div>
+      <div class="cell-body">
+        Run the <strong>smallest autonomous AI agent on earth</strong> — a 0.5B model, $13/month total costs —
         and let it <em>bootstrap its own intelligence</em>. The agent sells GitHub audits and crypto insights for USDC.
         Once it covers its costs, surplus goes to the owner. Once it earns enough to justify an upgrade,
         it gets a bigger brain. <strong>The more it earns, the smarter it becomes.</strong>
@@ -773,8 +859,8 @@ footer{
     </div>
 
     <div class="about-cell">
-      <div class="about-head">hardware constraint</div>
-      <div class="about-body">
+      <div class="cell-head">Hardware constraint</div>
+      <div class="cell-body">
         <strong>2 GB RAM · 1 vCPU · 20 GB SSD.</strong><br><br>
         No GPU. No cloud inference budget. The agent runs two GGUF models
         on CPU: a <em>0.5B reflex brain</em> for 60-second constitution cycles,
@@ -782,7 +868,7 @@ footer{
         freed immediately after each use (<code>del llm; gc.collect()</code>).
         Claude API is a paid fallback, not the default.
       </div>
-      <div class="constraints">
+      <div class="tags-row">
         <span class="tag g">qwen2.5-0.5B GGUF</span>
         <span class="tag g">qwen2.5-coder-1.5B GGUF</span>
         <span class="tag a">n_ctx=1024</span>
@@ -792,43 +878,45 @@ footer{
     </div>
 
     <div class="about-cell">
-      <div class="about-head">financial autonomy</div>
-      <div class="about-body">
-        Total costs: <em>$5 VPS + $5 Claude API = $10/month.</em>
+      <div class="cell-head">Financial autonomy</div>
+      <div class="cell-body">
+        Total costs: <em>$5 VPS + $8 Claude API = $13/month.</em>
         The agent holds a $10 USDC reserve, then transfers
         all surplus to the owner on Solana each month.
         Revenue from audits (0.50 USDC) and insights (0.10 USDC)
         — no subscriptions, no API keys for the buyer, <em>pure HTTP 402</em>.
-        Earn $20/month → upgrade to 3B model. Earn $40/month → 7B model.
+        Earn $26/month → upgrade to 3B model. Earn $52/month → 7B model.
       </div>
-      <div class="constraints">
+      <div class="tags-row">
         <span class="tag g">$10 reserve</span>
-        <span class="tag a">$10/mo total costs</span>
+        <span class="tag a">$13/mo total costs</span>
         <span class="tag b">HTTP 402</span>
-        <span class="tag">USDC · Solana</span>
+        <span class="tag s">USDC · Solana</span>
       </div>
     </div>
 
     <div class="about-cell-wide">
-      <div class="about-head">the rules</div>
-      <div class="about-body" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.5rem 2rem">
-        <span>✦ No persistent human input after first deploy</span>
-        <span>✦ It earns its own upgrades — or stays minimal forever</span>
-        <span>✦ All decisions logged on-chain or in SQLite with proof hash</span>
-        <span>✦ &lt;500 MB RAM idle · &lt;1.8 GB peak (audit)</span>
-        <span>✦ Open source — anyone can fork and run their own</span>
-        <span>✦ Agent identity published on <code>/.well-known/agent.json</code></span>
+      <div class="cell-head">The rules</div>
+      <div class="cell-body">
+        <div class="rules-grid">
+          <span class="rule-item">No persistent human input after first deploy</span>
+          <span class="rule-item">It earns its own upgrades — or stays minimal forever</span>
+          <span class="rule-item">All decisions logged on-chain or in SQLite with proof hash</span>
+          <span class="rule-item">&lt;500 MB RAM idle · &lt;1.8 GB peak (audit)</span>
+          <span class="rule-item">Open source — anyone can fork and run their own</span>
+          <span class="rule-item">Agent identity published on <code>/.well-known/agent.json</code></span>
+        </div>
       </div>
     </div>
 
   </div>
 </div>
 
-<hr class="div">
+<hr class="divider">
 
 <!-- ── JOURNEY ── -->
 <div class="section" id="journey">
-  <div class="sec-label">the journey</div>
+  <div class="sec-eyebrow">The journey</div>
   <h2>Bootstrapping its own intelligence.</h2>
   <p class="sec-sub">Every dollar above operating costs funds the next brain upgrade. The more it earns, the smarter it gets.</p>
 
@@ -845,19 +933,19 @@ footer{
   <div class="stage-road">
 
     <div class="stage-card active" id="j-stage-minimal">
-      <div class="stage-num">stage 01 · now</div>
+      <div class="stage-num">Stage 01 · now</div>
       <div class="stage-name">Minimal</div>
       <div class="stage-model">0.5B GGUF</div>
       <div class="stage-specs">
         <strong>2GB</strong> RAM · 1 vCPU<br>
-        VPS <strong>$5</strong>/mo · Claude <strong>$5</strong>/mo<br>
+        VPS <strong>$5</strong>/mo · Claude <strong>$8</strong>/mo<br>
         Context <strong>512</strong> tokens
       </div>
-      <div class="stage-cost current" id="j-cost-minimal">$10 / month</div>
+      <div class="stage-cost current" id="j-cost-minimal">$13 / month</div>
     </div>
 
     <div class="stage-card" id="j-stage-growth">
-      <div class="stage-num">stage 02 · unlock at $20/mo</div>
+      <div class="stage-num">Stage 02 · unlock at $26/mo</div>
       <div class="stage-name">Growth</div>
       <div class="stage-model">3B GGUF</div>
       <div class="stage-specs">
@@ -869,7 +957,7 @@ footer{
     </div>
 
     <div class="stage-card" id="j-stage-scale">
-      <div class="stage-num">stage 03 · unlock at $40/mo</div>
+      <div class="stage-num">Stage 03 · unlock at $52/mo</div>
       <div class="stage-name">Scale</div>
       <div class="stage-model">7B GGUF</div>
       <div class="stage-specs">
@@ -884,8 +972,8 @@ footer{
 
   <div class="journey-progress">
     <div class="jp-head">
-      <span class="jp-label">this month — distributed to owner</span>
-      <span class="jp-val" id="j-month-val" style="background:var(--sol-grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">0.00 USDC</span>
+      <span class="jp-label">This month — distributed to owner</span>
+      <span class="jp-val" id="j-month-val">0.00 USDC</span>
     </div>
     <div class="jp-bar-wrap"><div class="jp-bar" id="j-bar" style="width:0%"></div></div>
     <div class="jp-sub" id="j-bar-sub">toward next stage unlock: 0.00 / 20.00 USDC</div>
@@ -893,11 +981,11 @@ footer{
 
 </div>
 
-<hr class="div">
+<hr class="divider">
 
 <!-- ── SERVICES ── -->
 <div class="section" id="services">
-  <div class="sec-label">services</div>
+  <div class="sec-eyebrow">Services</div>
   <h2>Three endpoints. Three ways to buy intelligence.</h2>
   <p class="sec-sub">Structured JSON responses. No auth required. USDC on Solana mainnet.</p>
 
@@ -943,11 +1031,11 @@ footer{
   </div>
 </div>
 
-<hr class="div">
+<hr class="divider">
 
 <!-- ── PROTOCOL ── -->
 <div class="section" id="protocol">
-  <div class="sec-label">protocol</div>
+  <div class="sec-eyebrow">Protocol</div>
   <h2>HTTP 402 — Machine-to-Machine.</h2>
   <p class="sec-sub">Any AI agent, script, or human can call this API. Standard HTTP, USDC payment, SHA256 proof.</p>
 
@@ -971,7 +1059,7 @@ footer{
 <div>&nbsp;</div>
 <div><span class="tc"># ── Step 2 · Send 0.50 USDC on Solana (Phantom / Backpack / CLI)</span></div>
 <div>&nbsp;</div>
-<div>→ Transfer <span class="tv">0.50 USDC</span> to <span class="tv">Hz1Dfq...eXjo</span> on Solana mainnet</div>
+<div>→ Transfer <span class="tv">0.50 USDC</span> to <span class="tv">BATBmm2…Cxcf58</span> on Solana mainnet</div>
 <div>&nbsp;</div>
 <div><span class="tc"># ── Step 3 · Retry with Solana tx signature</span></div>
 <div>&nbsp;</div>
@@ -991,11 +1079,11 @@ footer{
   </div>
 </div>
 
-<hr class="div">
+<hr class="divider">
 
 <!-- ── LIVE ── -->
 <div class="section" id="live">
-  <div class="sec-label">live</div>
+  <div class="sec-eyebrow">Live</div>
   <h2>Agent Status.</h2>
   <p class="sec-sub">Auto-refreshes every 30s from the VPS directly.</p>
 
@@ -1023,11 +1111,11 @@ footer{
   </div>
 </div>
 
-<hr class="div">
+<hr class="divider">
 
 <!-- ── TELEGRAM ── -->
 <div class="section" id="telegram">
-  <div class="sec-label">interface</div>
+  <div class="sec-eyebrow">Interface</div>
   <h2>Human-friendly access.</h2>
   <p class="sec-sub">Prefer Telegram over raw HTTP? The bot handles payments, audits and insights — same backend, no code required.</p>
 
@@ -1046,7 +1134,7 @@ footer{
   </div>
 </div>
 
-<hr class="div">
+<hr class="divider">
 
 <!-- ── FOOTER ── -->
 <footer>
@@ -1163,7 +1251,7 @@ function applyData(d) {
   $('#t-upt').textContent = fmtUptime(agt.uptime_seconds);
   $('#t-rsv').textContent = fmt(fin.reserve_minimum);
   $('#t-vps').textContent = fin.vps_paid_this_month ? '✓ yes' : '✗ no';
-  $('#t-vps').style.color = fin.vps_paid_this_month ? 'var(--green)' : 'var(--amber)';
+  $('#t-vps').style.color = fin.vps_paid_this_month ? 'var(--mint)' : 'var(--amber)';
   $('#t-cat').textContent = cat.count ?? '—';
   $('#t-brn').textContent = lst.brain_source || '—';
 
@@ -1190,7 +1278,7 @@ async function refresh() {
     const data = await res.json();
     setTimeout(() => { applyData(data); setUpdating(false); }, 280);
     $('#nav-status').textContent = 'ONLINE';
-    $('#nav-status').style.color = 'var(--green)';
+    $('#nav-status').style.color = 'var(--mint)';
   } catch {
     setUpdating(false);
     $('#nav-status').textContent = 'OFFLINE';
