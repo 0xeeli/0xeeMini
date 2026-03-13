@@ -45,9 +45,16 @@ class BrainLink:
         budget = self.cfg.get("claude_budget", 5.0)
         return max(0.0, budget - self._claude_spent_usd)
 
-    def _claude_throttle_expired(self) -> bool:
-        throttle = self.cfg.get("claude_throttle_secs", 600)
-        return (time.time() - self._last_claude_call) >= throttle
+    def _claude_throttle_expired(self, runtime_state: dict | None = None) -> bool:
+        # Bootstrap (balance < reserve) → 1h entre appels Claude (budget conservation).
+        # Operational/Profitable → throttle configuré (défaut 10min).
+        base = self.cfg.get("claude_throttle_secs", 600)
+        if runtime_state:
+            balance = runtime_state.get("balance_usdc", 0.0)
+            reserve = runtime_state.get("reserve_minimum", 10.0)
+            if balance < reserve:
+                base = max(base, 3600)  # 1h minimum en bootstrap
+        return (time.time() - self._last_claude_call) >= base
 
     # ── Think avec Constitution ────────────────────────
 
@@ -63,7 +70,7 @@ class BrainLink:
         reflex = self._think_reflex(runtime_state)
 
         # Fast-path réflexe si throttle Claude pas expiré
-        if reflex is not None and not self._claude_throttle_expired():
+        if reflex is not None and not self._claude_throttle_expired(runtime_state):
             logger.debug("BrainLink — fast-path réflexe (Claude throttlé)")
             return reflex
 
