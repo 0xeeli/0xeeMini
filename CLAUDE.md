@@ -136,25 +136,34 @@ setenv.add-response-header = (
 Ce bloc doit être **directement dans `$HTTP["host"]`**, pas dans un sous-bloc `$HTTP["url"]`
 (les `setenv` imbriqués ne s'appliquent pas aux réponses proxy sous lighttpd).
 
-## GGUF False-Positive ABORT — Gardes
+## Modèle de décision (constitution.py + brain_link.py)
 
-Le modèle 0.5B peut halluciner `EXECUTE_TRANSFER` ou `ABORT` sans justification.
-Trois gardes dans `brain_link.py` + `constitution.py` :
+**Espace d'actions :** `WAIT | EXECUTE_TRANSFER | RUN_HUSTLE | REQUEST_UPGRADE`
+`ABORT` et `ALERT_OWNER` sont supprimés. L'agent génère des profits ou pas — pas d'alertes humaines.
 
-1. **Fast-path bloqué si reflex=ABORT** : si le GGUF renvoie `ABORT`, on bypass
-   le fast-path et Claude doit confirmer avant toute action critique.
-2. **`_normalize_reflex_response()` — EXECUTE_TRANSFER → WAIT** : le GGUF ne
-   connaît pas les adresses wallet → tout `EXECUTE_TRANSFER` du réflexe est
-   converti en `WAIT` (log debug).
-3. **`_normalize_reflex_response()` — ABORT → ALERT_OWNER** : si balance ≥ réserve,
-   un `ABORT` du GGUF est converti en `ALERT_OWNER` (log warning) — faux positif.
+**Statuts opérationnels :**
+- `BOOTSTRAP`   — balance < réserve. GGUF gère seul, Claude throttlé à 1h.
+- `OPERATIONAL` — balance ≥ réserve. Claude throttlé à 10min (config).
+- `PROFITABLE`  — surplus ≥ 5 USDC. EXECUTE_TRANSFER vers owner recommandé.
+
+**Garde GGUF :** tout ce que le réflexe 0.5B produit hors `{WAIT, RUN_HUSTLE, REQUEST_UPGRADE}`
+est converti en `WAIT` silencieux — le GGUF n'a pas les adresses wallet.
+
+**Throttle dynamique :** `brain_link._claude_throttle_expired(runtime_state)`
+→ 3600s si `balance < reserve`, sinon `CLAUDE_THROTTLE_SECS` (600s par défaut).
+Économise ~$0.50/jour de budget Claude inutile en phase bootstrap.
+
+**Rate limiting HTTP :** middleware in-memory par IP dans `hustle_api.py` :
+- `POST /audit` → 20 req/min · `POST /audit/batch` → 10 req/min
+- `POST /audit/action` → 20 req/min · `POST /access` → 20 req/min
+- `GET /catalog` → 60 req/min · `GET /insight/*` → 60 req/min
 
 ## Variables d'environnement clés
 
 ```bash
 CLAUDE_API_KEY=sk-ant-...          # Primaire pour audits et constitution
-CLAUDE_BUDGET_MONTHLY_USD=5.0      # Budget mensuel
-CLAUDE_THROTTLE_SECS=600           # Constitution appelée max 1x/10min
+CLAUDE_BUDGET_MONTHLY_USD=5.0      # Budget mensuel ($10 total = $5 VPS + $5 Claude)
+CLAUDE_THROTTLE_SECS=600           # Constitution appelée max 1x/10min (OPERATIONAL+)
 BRAIN_MODEL_PATH=~/0xeeMini/models/qwen2.5-0.5b-instruct-q4_k_m.gguf
 BRAIN_AUDIT_MODEL_PATH=~/0xeeMini/models/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf
 PRICE_PER_AUDIT_USDC=0.50
