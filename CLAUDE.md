@@ -153,7 +153,7 @@ Trois gardes dans `brain_link.py` + `constitution.py` :
 
 ```bash
 CLAUDE_API_KEY=sk-ant-...          # Primaire pour audits et constitution
-CLAUDE_BUDGET_MONTHLY_USD=8.0      # Budget mensuel (augmenté mars 2026)
+CLAUDE_BUDGET_MONTHLY_USD=5.0      # Budget mensuel
 CLAUDE_THROTTLE_SECS=600           # Constitution appelée max 1x/10min
 BRAIN_MODEL_PATH=~/0xeeMini/models/qwen2.5-0.5b-instruct-q4_k_m.gguf
 BRAIN_AUDIT_MODEL_PATH=~/0xeeMini/models/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf
