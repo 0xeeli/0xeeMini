@@ -63,9 +63,7 @@ class BrainLink:
         reflex = self._think_reflex(runtime_state)
 
         # Fast-path réflexe si throttle Claude pas expiré
-        # Exception : ABORT ne peut jamais bypasser Claude (trop irréversible)
-        reflex_action = reflex.get("decision", {}).get("action") if reflex else None
-        if reflex is not None and not self._claude_throttle_expired() and reflex_action != "ABORT":
+        if reflex is not None and not self._claude_throttle_expired():
             logger.debug("BrainLink — fast-path réflexe (Claude throttlé)")
             return reflex
 
@@ -216,26 +214,20 @@ class BrainLink:
         action = data.get("action", "WAIT")
         balance = runtime_state.get("balance_usdc", 0.0)
 
-        if action not in {"WAIT", "EXECUTE_TRANSFER", "ALERT_OWNER", "ABORT"}:
+        # Le réflexe GGUF (0.5B) ne peut pas décider des transferts (pas de wallet/amount).
+        # EXECUTE_TRANSFER, ABORT, ALERT_OWNER → tous ramenés à WAIT.
+        if action not in {"WAIT", "RUN_HUSTLE", "REQUEST_UPGRADE"}:
+            if action != "WAIT":
+                logger.debug(f"Réflexe GGUF — {action} → WAIT (action réservée à Claude)")
             action = "WAIT"
-
-        # Le réflexe GGUF (0.5B) est trop petit pour des actions irréversibles.
-        # EXECUTE_TRANSFER : pas de to_wallet/amount dans le format compact → WAIT.
-        # ABORT            : downgrade ALERT_OWNER sauf si balance < réserve réelle.
-        if action == "EXECUTE_TRANSFER":
-            logger.debug("Réflexe GGUF — EXECUTE_TRANSFER sans détails wallet → WAIT")
-            action = "WAIT"
-        elif action == "ABORT":
-            _bal = runtime_state.get("balance_usdc", 0.0)
-            _res = runtime_state.get("reserve_minimum", 15.0)
-            if _bal >= _res:
-                logger.warning("Réflexe GGUF — ABORT sur balance OK → ALERT_OWNER (faux positif)")
-                action = "ALERT_OWNER"
 
         reserve = runtime_state.get("reserve_minimum", 15.0)
         vps_paid = runtime_state.get("vps_paid_this_month", False)
         profit = runtime_state.get("monthly_profit_so_far", 0.0)
-        threat = data.get("threat", "YELLOW")
+        status = (
+            "BOOTSTRAP" if balance < reserve else
+            ("PROFITABLE" if balance > reserve + 5.0 else "OPERATIONAL")
+        )
 
         return {
             "0xeemini_version": "0.1",
@@ -245,8 +237,7 @@ class BrainLink:
                 "current_usdc_balance": balance,
                 "monthly_profit_so_far": profit,
                 "vps_paid_this_month": vps_paid,
-                "threat_level": threat,
-                "threat_reason": data.get("rationale"),
+                "status": status,
             },
             "decision": {
                 "action": action,
@@ -262,9 +253,7 @@ class BrainLink:
             },
             "next_cycle_in_seconds": 60,
             "flags": {
-                "requires_human_validation": data.get("kill_switch", False),
                 "kill_switch_armed": data.get("kill_switch", False),
-                "recovery_mode": threat == "RED",
             },
             "_source": "reflex_gguf",
             "_cost_usd": 0.0,
