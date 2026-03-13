@@ -10,13 +10,14 @@
 #   GET  /.well-known/ai-plugin.json  → manifeste auto-découverte A2A
 # ─────────────────────────────────────────────────────
 
+import collections
 import hashlib
 import time
 from datetime import datetime, timezone
 from typing import Optional
 
 import httpx
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import APIRouter, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from loguru import logger
 from pydantic import BaseModel, Field
@@ -133,7 +134,20 @@ app = FastAPI(
 # CORS handled entirely by lighttpd via setenv.add-response-header
 # (avoids duplicate headers that break Dialect validator OPTIONS preflight)
 
-_api = __import__('fastapi').APIRouter(prefix="/api")
+_api = APIRouter(prefix="/api")
+
+# ── Rate limiting (in-memory, per IP) ─────────────────
+# Covers both /audit and /api/audit routes transparently.
+_RATE_LIMITS: dict[str, tuple[int, int]] = {
+    # path prefix → (max_requests, window_seconds)
+    "/audit/batch":  (10, 60),
+    "/audit/action": (20, 60),
+    "/audit":        (20, 60),
+    "/access":       (20, 60),
+    "/insight/":     (60, 60),
+    "/catalog":      (60, 60),
+}
+_rate_buckets: dict[str, list[float]] = collections.defaultdict(list)
 
 
 @app.middleware("http")
@@ -141,6 +155,34 @@ async def add_powered_by(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Powered-By"] = f"0xeeMini/{_VERSION} | {_PLATFORM}"
     return response
+
+
+@app.middleware("http")
+async def rate_limit(request: Request, call_next):
+    # Normalize path: /api/audit → /audit
+    path = request.url.path
+    if path.startswith("/api"):
+        path = path[4:] or "/"
+
+    limit_key = next(
+        (prefix for prefix in _RATE_LIMITS if path.startswith(prefix)), None
+    )
+    if limit_key:
+        max_req, window = _RATE_LIMITS[limit_key]
+        ip = (request.client.host if request.client else "unknown")
+        bucket = f"{ip}:{limit_key}"
+        now = time.time()
+        # Prune expired timestamps
+        _rate_buckets[bucket] = [t for t in _rate_buckets[bucket] if now - t < window]
+        if len(_rate_buckets[bucket]) >= max_req:
+            return JSONResponse(
+                status_code=429,
+                content={"error": "rate_limit_exceeded", "retry_after": window},
+                headers={"Retry-After": str(window)},
+            )
+        _rate_buckets[bucket].append(now)
+
+    return await call_next(request)
 
 
 # ── Helpers ───────────────────────────────────────────
