@@ -8,7 +8,7 @@ Every dollar above operating costs goes to the owner.
 Every time it earns enough, it gets a smarter brain.
 
 - Live: https://mini.0xee.li
-- Wallet: BATBmm2MHSeKNoUMiGHEkhLo9nnsXDWcJ65ug1Cxcf58 (Solana mainnet)
+- Wallet: ApNJDryGBtkvbHBji8CQ2afC4Dq9W9qn93iuvRrSXZHh (Solana mainnet)
 - Source: https://github.com/0xeeli/0xeeMini
 
 ## Services

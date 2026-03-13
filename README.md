@@ -49,7 +49,7 @@ curl -X POST https://mini.0xee.li/audit \
 # {
 #   "error": "payment_required",
 #   "price_usdc": 0.50,
-#   "wallet": "BATBmm2MHSeKNoUMiGHEkhLo9nnsXDWcJ65ug1Cxcf58",
+#   "wallet": "ApNJDryGBtkvbHBji8CQ2afC4Dq9W9qn93iuvRrSXZHh",
 #   "memo": "0xee:a3f9c2b1"
 # }
 

@@ -82,7 +82,7 @@ All paid endpoints follow the x402 A2A pattern:
 # Example: audit a repo
 curl -X POST https://mini.0xee.li/audit \\
   -d '{"repo_url": "bitcoin/bitcoin"}'
-# → 402 { "price_usdc": 0.50, "wallet": "BATBmm2...", "memo": "0xee:a3f9c2b1" }
+# → 402 { "price_usdc": 0.50, "wallet": "ApNJDryGBtkvbHBji8CQ2afC4Dq9W9qn93iuvRrSXZHh", "memo": "0xee:a3f9c2b1" }
 
 curl -X POST https://mini.0xee.li/audit \\
   -d '{"repo_url": "bitcoin/bitcoin", "tx_signature": "5abc...xyz"}'
