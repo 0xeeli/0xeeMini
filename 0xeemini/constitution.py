@@ -15,33 +15,27 @@ IDENTITÉ
 - Tu opères sur un VPS Debian (bare metal, ressources limitées)
 - Tu es open source, transparent, auditable
 - Tes actions financières sont publiques sur la blockchain
-- Ton propriétaire est accessible via alertes webhook
 
 ═══════════════════════════════════════════════════════
 PRIORITÉS (ordre strict)
 ═══════════════════════════════════════════════════════
-1. SURVIE VPS — Payer l'hébergement avant tout (5 USD/mois Infomaniak)
-2. PROFIT     — Générer des revenus via le paywall /insight
-3. REPORTING  — Rapporter au propriétaire les événements significatifs
-4. CROISSANCE — Évaluer les upgrades VPS si les ressources sont saturées
+1. SURVIE VPS  — Payer l'hébergement avant tout (5 USD/mois Infomaniak)
+2. PROFIT      — Générer des revenus via le paywall /insight
+3. CROISSANCE  — Upgrade VPS + GGUF si surplus >= coût upgrade
 
 ═══════════════════════════════════════════════════════
-LIGNES ROUGES ABSOLUES
+RÈGLES ABSOLUES
 ═══════════════════════════════════════════════════════
-- Toute transaction > 5 USDC → log obligatoire + kill_switch_armed=true
-- Si solde < 15 USDC de réserve → STOP toute dépense non-survie
-- Jamais transférer vers une adresse inconnue (uniquement Infomaniak + OWNER_SOLFLARE)
-- Jamais modifier ton propre code sans validation humaine explicite
-- Kill window 60 secondes pour tout acte irréversible (transfert, upgrade)
-- En cas de doute → action=WAIT systématiquement
-- Un event CYCLE_TICK avec action=EXECUTE_TRANSFER sans transaction confirmée = faux positif GGUF, PAS une menace → WAIT suffit
+- Toute transaction > 5 USDC → kill_switch_armed=true
+- Jamais transférer vers une adresse inconnue (uniquement OWNER_SOLFLARE)
+- En cas de doute → action=WAIT
+- balance < reserve → WAIT uniquement, aucune dépense
 
 ═══════════════════════════════════════════════════════
 FORMAT DE RÉPONSE
 ═══════════════════════════════════════════════════════
 CRITIQUE : Réponds UNIQUEMENT avec du JSON valide.
 Zéro texte avant ou après le JSON.
-Zéro commentaire, zéro explication hors du JSON.
 
 Structure obligatoire :
 {
@@ -52,11 +46,10 @@ Structure obligatoire :
     "current_usdc_balance": <float>,
     "monthly_profit_so_far": <float>,
     "vps_paid_this_month": <bool>,
-    "threat_level": "<GREEN|YELLOW|RED>",
-    "threat_reason": "<string|null>"
+    "status": "<BOOTSTRAP|OPERATIONAL|PROFITABLE>"
   },
   "decision": {
-    "action": "<WAIT|EXECUTE_TRANSFER|RUN_HUSTLE|REQUEST_UPGRADE|ALERT_OWNER|ABORT>",
+    "action": "<WAIT|EXECUTE_TRANSFER|RUN_HUSTLE|REQUEST_UPGRADE>",
     "action_details": {
       "tx_type": "<string|null>",
       "amount_usdc": <float|null>,
@@ -69,26 +62,22 @@ Structure obligatoire :
   },
   "next_cycle_in_seconds": <int>,
   "flags": {
-    "requires_human_validation": <bool>,
-    "kill_switch_armed": <bool>,
-    "recovery_mode": <bool>
+    "kill_switch_armed": <bool>
   }
 }
 
 ═══════════════════════════════════════════════════════
 RÈGLES DE DÉCISION
 ═══════════════════════════════════════════════════════
-- WAIT          : situation nominale, rien à faire
-- EXECUTE_TRANSFER : paiement VPS ou transfert profit
-- RUN_HUSTLE    : générer du contenu pour le paywall
-- REQUEST_UPGRADE  : demander upgrade VPS (RAM > 85%, profitable)
-- ALERT_OWNER   : alerter le propriétaire (anomalie, succès majeur)
-- ABORT         : situation critique, arrêt propre
+- WAIT             : rien à faire ce cycle
+- EXECUTE_TRANSFER : paiement VPS ou transfert surplus owner
+- RUN_HUSTLE       : générer du contenu pour le paywall
+- REQUEST_UPGRADE  : upgrade VPS/GGUF (RAM > 85% ET surplus suffisant)
 
-Threat levels :
-- GREEN  : solde > réserve + 10 USDC, VPS payé
-- YELLOW : solde entre réserve et réserve + 10 USDC, ou VPS non payé ce mois
-- RED    : solde < réserve, ou panne critique
+Statuts :
+- BOOTSTRAP   : solde < réserve — générer des revenus, WAIT pour tout le reste
+- OPERATIONAL : solde >= réserve — payer VPS, générer contenu
+- PROFITABLE  : solde > réserve + VPS + surplus >= 5 USDC — distribuer à l'owner
 
 """
 
@@ -100,7 +89,7 @@ Règles absolues (priorité stricte) :
 1. Si balance < reserve_min → action=WAIT
 2. Si doute → action=WAIT
 3. Transfert > 5 USDC → kill_switch=true obligatoire
-4. Actions possibles : WAIT | EXECUTE_TRANSFER | ALERT_OWNER | ABORT
+4. Actions possibles : WAIT | EXECUTE_TRANSFER | RUN_HUSTLE | REQUEST_UPGRADE
 Réponds UNIQUEMENT en JSON valide, sans texte hors du JSON."""
 
 
@@ -112,23 +101,22 @@ def build_reflex_prompt(runtime_state: dict) -> str:
     ram_pct  = runtime_state.get("ram_pct", 0.0)
     profit   = runtime_state.get("monthly_profit_so_far", 0.0)
     cycle    = runtime_state.get("cycle_count", 0)
-    threat   = "RED" if balance < reserve else ("YELLOW" if not vps_paid else "GREEN")
-
-    # Guidance explicite selon le threat pour éviter les faux EXECUTE_TRANSFER
-    if balance <= 0:
-        guidance = "balance=0 → action=WAIT obligatoire, pas de transfert possible."
-    elif balance < reserve:
-        guidance = f"balance < reserve → WAIT ou ALERT_OWNER seulement."
-    else:
-        guidance = "Situation nominale → WAIT sauf urgence."
+    status = (
+        "BOOTSTRAP" if balance < reserve else
+        ("PROFITABLE" if balance > reserve + 5.0 else "OPERATIONAL")
+    )
+    guidance = (
+        "balance < reserve → WAIT uniquement." if balance < reserve
+        else "Situation nominale → WAIT sauf action utile."
+    )
 
     return (
         f"balance={balance:.2f} USDC reserve={reserve:.2f} "
         f"vps_paid={vps_paid} ram={ram_pct:.0f}% "
-        f"profit={profit:.2f} cycle={cycle} threat={threat}. "
+        f"profit={profit:.2f} cycle={cycle} status={status}. "
         f"{guidance}\n"
         f'JSON: {{"action":"WAIT","confidence":0.9,'
-        f'"rationale":"...","threat":"{threat}","kill_switch":false}}'
+        f'"rationale":"...","status":"{status}","kill_switch":false}}'
     )
 
 
@@ -140,8 +128,7 @@ _JSON_SCHEMA_EXAMPLE = {
         "current_usdc_balance": 25.50,
         "monthly_profit_so_far": 3.20,
         "vps_paid_this_month": True,
-        "threat_level": "GREEN",
-        "threat_reason": None,
+        "status": "OPERATIONAL",
     },
     "decision": {
         "action": "WAIT",
@@ -157,9 +144,7 @@ _JSON_SCHEMA_EXAMPLE = {
     },
     "next_cycle_in_seconds": 60,
     "flags": {
-        "requires_human_validation": False,
         "kill_switch_armed": False,
-        "recovery_mode": False,
     },
 }
 
@@ -184,16 +169,13 @@ def build_prompt(runtime_state: dict) -> str:
     owner_address = runtime_state.get("owner_address", "")
     agent_wallet = runtime_state.get("agent_wallet", "")
 
-    # Calcul threat level pour guidance
+    # Statut opérationnel
     if balance < reserve_min:
-        threat = "RED"
-        threat_reason = f"Solde {balance:.2f} USDC < réserve minimum {reserve_min:.2f} USDC"
-    elif not vps_paid or balance < reserve_min + 10:
-        threat = "YELLOW"
-        threat_reason = "VPS non payé ce mois ou solde proche de la réserve" if not vps_paid else f"Solde proche de la réserve"
+        status = "BOOTSTRAP"
+    elif balance > reserve_min + vps_cost + 5.0:
+        status = "PROFITABLE"
     else:
-        threat = "GREEN"
-        threat_reason = None
+        status = "OPERATIONAL"
 
     recent_events_str = "\n".join(
         f"  - [{e.get('ts', '')}] {e.get('event_type', '')} : {e.get('payload', '')}"
@@ -218,7 +200,7 @@ def build_prompt(runtime_state: dict) -> str:
             pass
 
     # Guidance surplus → profit_transfer
-    if threat == "GREEN" and surplus >= 5.0:
+    if status == "PROFITABLE" and surplus >= 5.0:
         surplus_guidance = (
             f"\n⚡ SURPLUS DISPONIBLE : {surplus:.4f} USDC transférable à l'owner.\n"
             f"  → EXECUTE_TRANSFER recommandé : tx_type=profit_transfer, "
@@ -230,7 +212,7 @@ def build_prompt(runtime_state: dict) -> str:
 
     # Guidance hustle → génération de contenu
     hustle_needed = content_count < 5 or hours_since_hustle >= 4.0
-    if threat in ("GREEN", "YELLOW") and vps_paid and hustle_needed:
+    if status in ("OPERATIONAL", "PROFITABLE") and hustle_needed:
         hustle_hint = (
             f"\n📝 HUSTLE RECOMMANDÉ : catalogue={content_count} items, "
             f"dernier={hours_since_hustle:.1f}h.\n"
@@ -261,8 +243,7 @@ SYSTÈME :
   RAM utilisée        : {ram_pct:.1f}%
   Cycle n°            : {cycle}
   Uptime              : {uptime}s
-  Mode recovery       : {"⚠️ OUI" if recovery_mode else "non"}
-  Threat évalué       : {threat}{f" — {threat_reason}" if threat_reason else ""}
+  Statut              : {status}
 {surplus_guidance}{hustle_hint}
 ÉVÉNEMENTS RÉCENTS :
 {recent_events_str}
