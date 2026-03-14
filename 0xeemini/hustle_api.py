@@ -1030,6 +1030,123 @@ async def agent_json():
     }
 
 
+@app.get(
+    "/.well-known/agent-card.json",
+    tags=["discovery"],
+    summary="A2A v0.3.0 Agent Card (Google A2A protocol)",
+)
+async def agent_card():
+    """
+    Agent Card au format A2A v0.3.0 (Linux Foundation / Google A2A protocol).
+    Découverte décentralisée — aucun registre central requis.
+    Compatible : a2a-sdk, LangChain, ADK, tout client A2A v0.3+.
+    Spec : https://a2a-protocol.org/latest/specification/
+    """
+    from .config import CFG
+    return JSONResponse(content={
+        "name": _AGENT_NAME,
+        "description": (
+            "Autonomous AI agent on Solana. Detects fake blockchain developers "
+            "via GitHub commit analysis. Bullshit score 0–100. "
+            "Pays its own $10/month VPS + Claude bill via HTTP 402 revenue. "
+            "No human operator after deploy."
+        ),
+        "version": _VERSION,
+        "protocolVersion": "0.3.0",
+        "url": _PLATFORM,
+        "documentationUrl": "https://github.com/0xeeli/0xeeMini",
+        "provider": {
+            "organization": "0xee",
+            "url": "https://mini.0xee.li",
+        },
+        "capabilities": {
+            "streaming": False,
+            "pushNotifications": False,
+            "longRunningOperations": True,
+        },
+        "defaultInputModes": ["application/json"],
+        "defaultOutputModes": ["application/json"],
+        "authentication": {
+            "schemes": ["x402"],
+            "description": (
+                "HTTP 402 payment required. Send USDC on Solana mainnet, "
+                "retry with tx_signature. No API key needed."
+            ),
+        },
+        "skills": [
+            {
+                "id": "github-audit",
+                "name": "GitHub Fake-Dev Audit",
+                "description": (
+                    "Detects wash development, cosmetic-only commits, "
+                    "single-author fake teams. Returns bullshit_score 0–100, "
+                    "verdict INVEST/CAUTION/AVOID, red_flags list, "
+                    "and SHA256 proof-of-compute."
+                ),
+                "tags": ["audit", "github", "security", "blockchain", "due-diligence"],
+                "examples": [
+                    'POST /audit {"repo_url": "bitcoin/bitcoin"}',
+                    'POST /audit {"repo_url": "owner/repo", "tx_signature": "5abc..."}',
+                ],
+                "inputModes": ["application/json"],
+                "outputModes": ["application/json"],
+                "payment": {
+                    "protocol": "x402",
+                    "amount": str(CFG["price_per_audit"]),
+                    "currency": "USDC",
+                    "chain": "solana-mainnet",
+                    "recipient": CFG["wallet_public"],
+                },
+            },
+            {
+                "id": "batch-audit",
+                "name": "Portfolio Batch Audit",
+                "description": "Audit 2–5 GitHub repos in one transaction. 1.50 USDC.",
+                "tags": ["audit", "batch", "portfolio", "blockchain"],
+                "examples": [
+                    'POST /audit/batch {"repos": ["owner/repo1", "owner/repo2"]}',
+                ],
+                "inputModes": ["application/json"],
+                "outputModes": ["application/json"],
+                "payment": {
+                    "protocol": "x402",
+                    "amount": "1.50",
+                    "currency": "USDC",
+                    "chain": "solana-mainnet",
+                    "recipient": CFG["wallet_public"],
+                },
+            },
+            {
+                "id": "crypto-insights",
+                "name": "Crypto & Tech Insights",
+                "description": (
+                    "AI-curated intelligence from Hacker News + CoinGecko. "
+                    "Structured JSON. 0.10 USDC per item."
+                ),
+                "tags": ["insights", "crypto", "intelligence", "research"],
+                "examples": ["GET /catalog", "GET /insight/{content_id}"],
+                "inputModes": ["application/json"],
+                "outputModes": ["application/json"],
+                "payment": {
+                    "protocol": "x402",
+                    "amount": str(CFG["price_per_insight"]),
+                    "currency": "USDC",
+                    "chain": "solana-mainnet",
+                    "recipient": CFG["wallet_public"],
+                },
+            },
+        ],
+        "extensions": {
+            "erc8004": f"{_PLATFORM}/.well-known/agent.json",
+            "solana_actions": f"{_PLATFORM}/.well-known/actions.json",
+            "openapi": f"{_PLATFORM}/openapi.json",
+            "proof_of_compute": f"{_PLATFORM}/reputation",
+            "wallet": CFG["wallet_public"],
+            "network": "solana-mainnet",
+        },
+    })
+
+
 @app.get("/.well-known/actions.json", tags=["discovery"], summary="Solana Actions / Blinks manifest")
 async def actions_manifest():
     """Dialect/Solana Actions registry manifest — liste les Blinks de l'agent."""
@@ -1668,6 +1785,10 @@ async def _api_catalog_action_options():
 @_api.get("/catalog/action")
 async def _api_catalog_action_meta():
     return await catalog_action_meta()
+
+@_api.get("/.well-known/agent-card.json")
+async def _api_agent_card():
+    return await agent_card()
 
 
 app.include_router(_api)
