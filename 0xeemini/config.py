@@ -69,7 +69,7 @@ def load_config() -> dict:
         "current_vps_plan":  os.getenv("CURRENT_VPS_PLAN", "2GB"),
 
         # API
-        "api_host":          os.getenv("API_HOST", "0.0.0.0"),
+        "api_host":          os.getenv("API_HOST", "127.0.0.1"),
         "api_port":          int(os.getenv("API_PORT", "8000")),
         "platform_url":      os.getenv("PLATFORM_URL", "https://mini.0xee.li"),
     }
