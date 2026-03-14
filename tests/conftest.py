@@ -34,7 +34,7 @@ _MOCK_CFG = {
     "price_per_audit":  0.50,
     "vps_monthly_cost": 5.00,
     "current_vps_plan": "2GB",
-    "api_host":         "0.0.0.0",
+    "api_host":         "127.0.0.1",
     "api_port":         8000,
     "platform_url":     "https://mini.0xee.li",
 }
