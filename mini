@@ -83,6 +83,7 @@ def cmd_deploy() -> None:
     _print_section("rsync")
     _run([
         "rsync", "-avz",
+        "--exclude=.git/",
         "--exclude=*.db", "--exclude=*.db-shm", "--exclude=*.db-wal",
         "--exclude=logs/", "--exclude=.env", "--exclude=backups/",
         "--exclude=__pycache__/", "--exclude=*.pyc", "--exclude=.venv/",
